@@ -1,0 +1,10 @@
+/target
+/data
+.env
+.env.local
+*.tmp
+*.log
+web/vendor/
+.DS_Store
+.idea/
+.vscode/

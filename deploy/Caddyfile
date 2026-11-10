@@ -1,0 +1,26 @@
+# Sethu behind a TLS reverse proxy.
+#
+# 1. Point remote.example.com at this host.
+# 2. Replace the hostname below.
+# 3. In Sethu's environment set:
+#      SETHU_PUBLIC_URL=https://remote.example.com
+#      SETHU_COOKIE_SECURE=true
+#      SETHU_TRUST_PROXY=true
+#    and bind Sethu to 127.0.0.1:8080 only.
+
+remote.example.com {
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:8080 {
+		# Screen sharing needs unbuffered WebSocket frames.
+		flush_interval -1
+	}
+
+	header {
+		# CSP is also set by Sethu; this is belt and braces for the proxy.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

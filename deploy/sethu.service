@@ -1,0 +1,36 @@
+[Unit]
+Description=Sethu remote access gateway for Mac and iPhone
+Documentation=https://github.com/your-org/sethu
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sethu
+Group=sethu
+WorkingDirectory=/var/lib/sethu
+StateDirectory=sethu
+EnvironmentFile=/etc/sethu/sethu.env
+ExecStart=/usr/local/bin/sethu
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+
+# Hardening: Sethu needs outbound TCP to your devices and one listening port.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/sethu
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

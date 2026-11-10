@@ -1,0 +1,10 @@
+target
+data
+.git
+.gitignore
+.env
+.env.*
+web/vendor
+*.log
+.DS_Store
+.github

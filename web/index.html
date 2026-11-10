@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#05070d" />
+    <meta
+      name="description"
+      content="Sethu is a self-hosted, open-source web gateway for reaching your Mac and iPhone from any browser."
+    />
+    <title>Sethu — your Apple devices, anywhere</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <symbol id="i-mac" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M8 20h8M12 16v4" />
+      </symbol>
+      <symbol id="i-iphone" viewBox="0 0 24 24">
+        <rect x="7" y="2" width="10" height="20" rx="2.5" />
+        <path d="M10.5 18.5h3" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="i-arrow-left" viewBox="0 0 24 24">
+        <path d="M19 12H5M12 19l-7-7 7-7" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24">
+        <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+      </symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-home" viewBox="0 0 24 24">
+        <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24">
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol id="i-keyboard" viewBox="0 0 24 24">
+        <rect x="2" y="6" width="20" height="12" rx="2" />
+        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6" />
+      </symbol>
+      <symbol id="i-camera" viewBox="0 0 24 24">
+        <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+        <circle cx="12" cy="13" r="3.5" />
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <path d="M12 3 2.5 20h19Z" />
+        <path d="M12 9v5M12 17.5h.01" />
+      </symbol>
+      <symbol id="i-logo" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="9.5" />
+        <path d="M16 6.5c4 4 4 15 0 19M16 6.5c-4 4-4 15 0 19M7 16h18" />
+        <circle cx="16" cy="4" r="2" fill="currentColor" stroke="none" />
+      </symbol>
+    </svg>
+
+    <div class="aurora" aria-hidden="true"></div>
+
+    <div id="boot" class="boot" role="status" aria-live="polite">
+      <div class="boot-inner">
+        <svg class="icon boot-logo"><use href="#i-logo" /></svg>
+        <span>Sethu</span>
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Sethu home">
+        <span class="brand-mark">
+          <svg class="icon"><use href="#i-logo" /></svg>
+        </span>
+        <span class="brand-text">Sethu</span>
+      </a>
+      <div class="topbar-actions">
+        <span id="version" class="version"></span>
+        <button id="logout" class="btn btn-ghost hidden" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="auth-view" class="auth-layout hidden" aria-labelledby="auth-heading">
+        <div class="hero">
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Self-hosted · Open source</p>
+          <h1>Your Mac and iPhone,<br /><span class="gradient-text">on any screen.</span></h1>
+          <p class="lede">
+            Sethu is a small Rust server that puts your Apple devices in a browser tab.
+            Use it from Windows, Android, a Chromebook or an iPad — no client installs,
+            no third-party cloud.
+          </p>
+          <ul class="feature-list">
+            <li>
+              <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
+              <div><strong>Mac screen sharing</strong><span>Full keyboard and mouse over VNC through macOS Screen Sharing.</span></div>
+            </li>
+            <li>
+              <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
+              <div><strong>iPhone mirroring</strong><span>Live screenshots plus tap, swipe and text input via WebDriverAgent.</span></div>
+            </li>
+            <li>
+              <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
+              <div><strong>Yours alone</strong><span>Accounts, sessions and device list live on your server. Device passwords are never stored.</span></div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="auth-card">
+          <div class="card-heading">
+            <h2 id="auth-heading">Sign in</h2>
+            <p id="auth-subtitle">Welcome back. Pick up where you left off.</p>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Authentication">
+            <button class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="login">Sign in</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="register" id="register-tab">Create account</button>
+          </div>
+
+          <form id="auth-form" novalidate>
+            <label class="field">
+              <span>Email</span>
+              <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </label>
+            <label class="field">
+              <span>Password</span>
+              <input id="auth-password" type="password" autocomplete="current-password" placeholder="At least 10 characters" minlength="10" required />
+            </label>
+            <p id="auth-error" class="form-error" role="alert"></p>
+            <button id="auth-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
+          </form>
+
+          <p id="auth-hint" class="auth-hint">First run? Create the account that owns this server.</p>
+          <p class="auth-footnote">
+            Sessions use an HttpOnly, SameSite=Strict cookie. Run Sethu behind TLS before
+            exposing it to the internet.
+          </p>
+        </div>
+      </section>
+
+      <section id="dashboard-view" class="dashboard hidden" aria-labelledby="dashboard-heading">
+        <div class="dashboard-head">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-dot"></span> Connected workspace</p>
+            <h2 id="dashboard-heading">Your devices</h2>
+            <p class="section-note">Open a device, or add a Mac or iPhone that is reachable from this server.</p>
+          </div>
+          <button id="add-host" class="btn btn-primary" type="button">
+            <svg class="icon"><use href="#i-plus" /></svg>
+            <span class="btn-label">Add device</span>
+          </button>
+        </div>
+
+        <div id="hosts-grid" class="hosts-grid" aria-live="polite"></div>
+
+        <div id="hosts-empty" class="empty-state hidden">
+          <div class="empty-icon"><svg class="icon"><use href="#i-mac" /></svg></div>
+          <h3>No devices yet</h3>
+          <p>Enable Screen Sharing on your Mac, or start WebDriverAgent for your iPhone, then add it here.</p>
+          <button id="empty-add" class="btn btn-secondary" type="button">
+            <svg class="icon"><use href="#i-plus" /></svg>
+            Add your first device
+          </button>
+        </div>
+
+        <div class="setup-tips">
+          <div class="tip">
+            <h3>MacBook in two minutes</h3>
+            <ol>
+              <li>System Settings → General → Sharing → <strong>Screen Sharing</strong> on.</li>
+              <li>Allow your macOS user, or set a VNC password under <strong>Computer Settings…</strong>.</li>
+              <li>Add the Mac's hostname or IP, port <code>5900</code>.</li>
+            </ol>
+          </div>
+          <div class="tip">
+            <h3>iPhone mirroring</h3>
+            <ol>
+              <li>Connect the iPhone to a Mac and start <strong>WebDriverAgent</strong>.</li>
+              <li>Forward port <code>8100</code> (iproxy or go-ios) so Sethu can reach it.</li>
+              <li>Add <code>http://mac-ip:8100</code> as an iPhone device.</li>
+            </ol>
+            <p class="tip-note">Screenshots only, no audio. DRM video and the lock screen stay hidden by iOS.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Sethu <span id="footer-version" class="mono"></span></span>
+      <span class="dot-sep">·</span>
+      <span>MIT licensed</span>
+      <span class="dot-sep">·</span>
+      <span>Self-hosted, no third-party relay</span>
+    </footer>
+
+    <dialog id="host-dialog" class="dialog" aria-labelledby="host-dialog-title">
+      <form id="host-form" novalidate>
+        <div class="dialog-head">
+          <div>
+            <h2 id="host-dialog-title">Add a device</h2>
+            <p class="section-note">Sethu connects directly from this server to the device.</p>
+          </div>
+          <button id="host-close" class="icon-btn" type="button" aria-label="Close">
+            <svg class="icon"><use href="#i-x" /></svg>
+          </button>
+        </div>
+
+        <div class="dialog-body">
+          <fieldset class="kind-picker">
+            <legend>Device type</legend>
+            <label class="kind-option">
+              <input type="radio" name="kind" value="macos" checked />
+              <span class="kind-card">
+                <svg class="icon"><use href="#i-mac" /></svg>
+                <strong>Mac</strong>
+                <small>Screen Sharing</small>
+              </span>
+            </label>
+            <label class="kind-option">
+              <input type="radio" name="kind" value="ios" />
+              <span class="kind-card">
+                <svg class="icon"><use href="#i-iphone" /></svg>
+                <strong>iPhone / iPad</strong>
+                <small>WebDriverAgent</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <label class="field">
+            <span>Name</span>
+            <input id="host-name" type="text" maxlength="80" placeholder="Studio MacBook" required />
+          </label>
+
+          <label class="field">
+            <span id="host-target-label">Address</span>
+            <input id="host-target" type="text" autocomplete="off" spellcheck="false" placeholder="studio-mac.local:5900" required />
+            <small id="host-target-hint" class="hint">Hostname or IP. Port defaults to 5900.</small>
+          </label>
+
+          <label class="field">
+            <span>Notes <em>optional</em></span>
+            <textarea id="host-notes" rows="2" maxlength="280" placeholder="Living room Mac mini"></textarea>
+          </label>
+
+          <p id="host-error" class="form-error" role="alert"></p>
+        </div>
+
+        <div class="dialog-foot">
+          <button id="host-cancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="host-submit" class="btn btn-primary" type="submit">Add device</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+    <noscript>
+      <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
+    </noscript>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

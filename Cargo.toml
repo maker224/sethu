@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/sethu-server"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+repository = "https://github.com/your-org/sethu"
+homepage = "https://github.com/your-org/sethu"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

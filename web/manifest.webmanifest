@@ -1,0 +1,19 @@
+{
+  "name": "Sethu — remote access for Apple devices",
+  "short_name": "Sethu",
+  "description": "Self-hosted browser access to your Mac and iPhone.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

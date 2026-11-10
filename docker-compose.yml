@@ -1,0 +1,28 @@
+services:
+  sethu:
+    build: .
+    image: sethu:latest
+    container_name: sethu
+    restart: unless-stopped
+    # Bind to loopback by default: put Caddy/nginx in front for TLS. For a
+    # quick LAN test set SETHU_BIND_ADDR=0.0.0.0.
+    ports:
+      - "${SETHU_BIND_ADDR:-127.0.0.1}:8080:8080"
+    environment:
+      SETHU_PUBLIC_URL: ${SETHU_PUBLIC_URL:-http://localhost:8080}
+      SETHU_COOKIE_SECURE: ${SETHU_COOKIE_SECURE:-false}
+      SETHU_TRUST_PROXY: ${SETHU_TRUST_PROXY:-false}
+      SETHU_ALLOW_REGISTRATION: ${SETHU_ALLOW_REGISTRATION:-true}
+      SETHU_IOS_FPS: ${SETHU_IOS_FPS:-10}
+      SETHU_MAX_SESSIONS: ${SETHU_MAX_SESSIONS:-32}
+      RUST_LOG: ${RUST_LOG:-sethu_server=info}
+    volumes:
+      - sethu-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  sethu-data:
+    name: sethu-data

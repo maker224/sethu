@@ -1,0 +1,38 @@
+use std::sync::Arc;
+
+use anyhow::Context;
+use tokio::sync::Semaphore;
+
+use crate::{config::Config, rate_limit::RateLimiter, store::Store};
+
+/// Shared application state. Cheap to clone (`Arc` inside).
+#[derive(Clone)]
+pub struct AppState {
+    pub cfg: Arc<Config>,
+    pub store: Arc<Store>,
+    pub http: reqwest::Client,
+    pub limiter: Arc<RateLimiter>,
+    /// Caps concurrent VNC/iPhone streams so one account cannot exhaust the
+    /// server or the device.
+    pub ws_slots: Arc<Semaphore>,
+}
+
+impl AppState {
+    pub fn new(cfg: Config) -> anyhow::Result<Self> {
+        let store = Store::open(&cfg.data_dir)
+            .with_context(|| format!("opening data dir {}", cfg.data_dir.display()))?;
+        let http = reqwest::Client::builder()
+            .user_agent(concat!("sethu/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .build()
+            .context("building HTTP client")?;
+        let ws_slots = Arc::new(Semaphore::new(cfg.max_sessions));
+        Ok(Self {
+            cfg: Arc::new(cfg),
+            store: Arc::new(store),
+            http,
+            limiter: Arc::new(RateLimiter::new()),
+            ws_slots,
+        })
+    }
+}
