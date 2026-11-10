@@ -70,6 +70,8 @@ struct SessionView {
     novnc_vendored: bool,
     /// True when the sign-in screen is bypassed (`SETHU_AUTH=open`).
     auth_open: bool,
+    /// True when sign-in only asks for a username (`SETHU_AUTH=username`).
+    username_only: bool,
     max_file_bytes: u64,
 }
 
@@ -121,11 +123,13 @@ async fn session_info(State(state): State<AppState>, headers: HeaderMap) -> Json
     Json(SessionView {
         user,
         csrf,
-        registration: state.cfg.allow_registration || state.store.user_count() == 0,
+        registration: !state.cfg.username_only
+            && (state.cfg.allow_registration || state.store.user_count() == 0),
         version: env!("CARGO_PKG_VERSION"),
         cookie_secure: state.cfg.cookie_secure,
         novnc_vendored: state.cfg.vendor_dir.join("novnc/core/rfb.js").is_file(),
         auth_open: state.cfg.open_access,
+        username_only: state.cfg.username_only,
         max_file_bytes: state.cfg.max_file_bytes,
     })
 }
@@ -134,8 +138,12 @@ async fn session_info(State(state): State<AppState>, headers: HeaderMap) -> Json
 
 #[derive(Deserialize)]
 struct Credentials {
-    email: String,
-    password: String,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
 }
 
 async fn register(
@@ -147,6 +155,11 @@ async fn register(
             "authentication is disabled because this server runs in open-access mode".into(),
         ));
     }
+    if state.cfg.username_only {
+        return Err(AppError::Forbidden(
+            "registration is disabled: just sign in with a username".into(),
+        ));
+    }
     // With zero accounts the server must remain claimable even if registration
     // is disabled, otherwise a fresh deployment would be impossible to set up.
     let first_user = state.store.user_count() == 0;
@@ -155,15 +168,16 @@ async fn register(
             "account registration is disabled on this server".into(),
         ));
     }
-    let email = auth::normalize_email(&body.email)?;
-    auth::validate_password(&body.password)?;
+    let email = auth::normalize_email(body.email.as_deref().unwrap_or_default())?;
+    let password = body.password.as_deref().unwrap_or_default();
+    auth::validate_password(password)?;
     if state.store.user_by_email(&email).is_some() {
         return Err(AppError::Conflict(
             "an account with that email exists".into(),
         ));
     }
 
-    let hash = auth::hash_password(body.password).await?;
+    let hash = auth::hash_password(password.to_string()).await?;
     let user = state.store.create_user(&email, hash)?;
     let (token, _session) = state.store.create_session(user.id, state.cfg.session_ttl)?;
     tracing::info!(user_id = %user.id, "account created");
@@ -184,7 +198,44 @@ async fn login(
             "authentication is disabled because this server runs in open-access mode".into(),
         ));
     }
-    let email = body.email.trim().to_ascii_lowercase();
+
+    // Username mode: no password, no registration. The first sign-in for a new
+    // name creates that workspace.
+    if state.cfg.username_only {
+        let raw = body
+            .username
+            .as_deref()
+            .or(body.email.as_deref())
+            .unwrap_or_default();
+        let username = auth::normalize_username(raw)?;
+        let user = match state.store.user_by_email(&username) {
+            Some(user) => user,
+            None => match state
+                .store
+                .create_user(&username, "username-only-no-password".into())
+            {
+                Ok(user) => {
+                    tracing::info!(username = %username, "username workspace created");
+                    user
+                }
+                Err(crate::store::StoreError::Conflict) => state
+                    .store
+                    .user_by_email(&username)
+                    .ok_or_else(|| AppError::internal("username race"))?,
+                Err(err) => return Err(err.into()),
+            },
+        };
+        let (token, _session) = state.store.create_session(user.id, state.cfg.session_ttl)?;
+        tracing::info!(user_id = %user.id, username = %username, "username login");
+        return Ok(json_with_cookie(
+            StatusCode::OK,
+            auth::session_cookie(&state, &token),
+            &UserView::from(&user),
+        ));
+    }
+
+    let email = auth::normalize_email(body.email.as_deref().unwrap_or_default())?;
+    let password = body.password.unwrap_or_default();
     let user = state.store.user_by_email(&email);
 
     // Always spend the same argon2 work to avoid leaking which emails exist.
@@ -192,7 +243,7 @@ async fn login(
         Some(user) => user.password_hash.clone(),
         None => auth::dummy_password_hash().to_string(),
     };
-    let password_ok = auth::verify_password(hash, body.password).await;
+    let password_ok = auth::verify_password(hash, password).await;
 
     let Some(user) = user.filter(|_| password_ok) else {
         tracing::warn!(email = %email, "failed login");

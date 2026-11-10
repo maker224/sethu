@@ -48,6 +48,8 @@ pub struct Config {
     /// Skip the sign-in screen and share one workspace between all visitors.
     /// Only appropriate on a trusted LAN / behind a VPN.
     pub open_access: bool,
+    /// Sign in with a username only; no password and no registration step.
+    pub username_only: bool,
     /// Maximum size of a single uploaded file, in bytes.
     pub max_file_bytes: u64,
 }
@@ -92,10 +94,11 @@ impl Config {
             .collect();
 
         let auth_mode = env("SETHU_AUTH", "required").to_ascii_lowercase();
-        let open_access = match auth_mode.as_str() {
-            "required" | "on" => false,
-            "open" | "none" | "off" | "disabled" => true,
-            other => bail!("SETHU_AUTH must be `required` or `open`, got `{other}`"),
+        let (open_access, username_only) = match auth_mode.as_str() {
+            "required" | "on" => (false, false),
+            "username" | "simple" => (false, true),
+            "open" | "none" | "off" | "disabled" => (true, false),
+            other => bail!("SETHU_AUTH must be `required`, `username` or `open`, got `{other}`"),
         };
 
         Ok(Self {
@@ -119,6 +122,7 @@ impl Config {
             ),
             max_sessions: env_u64("SETHU_MAX_SESSIONS", 32).clamp(1, 512) as usize,
             open_access,
+            username_only,
             max_file_bytes: env_u64("SETHU_MAX_FILE_BYTES", 2 * 1024 * 1024 * 1024).max(1),
         })
     }
@@ -144,6 +148,7 @@ impl Config {
             vnc_connect_timeout: Duration::from_secs(2),
             max_sessions: 32,
             open_access: false,
+            username_only: false,
             max_file_bytes: 10 * 1024 * 1024,
         }
     }

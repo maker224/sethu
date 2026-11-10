@@ -401,6 +401,95 @@ async fn first_account_bootstraps_when_registration_is_closed() {
 }
 
 #[tokio::test]
+async fn username_only_login_creates_and_reuses_workspace() {
+    let dir = std::env::temp_dir().join(format!("sethu-username-{}", Uuid::new_v4()));
+    let mut config = Config::for_tests(dir.clone());
+    config.username_only = true;
+    let router = app(AppState::new(config).expect("state"));
+
+    let first = call(
+        &router,
+        "POST",
+        "/api/auth/login",
+        Some(json!({"username": "Mouli"})),
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(first.status, StatusCode::OK);
+    assert_eq!(first.body["email"], "mouli");
+    let token = first.token.clone().expect("cookie");
+    let user_id = first.body["id"].as_str().expect("id").to_string();
+
+    let second = call(
+        &router,
+        "POST",
+        "/api/auth/login",
+        Some(json!({"username": "mouli"})),
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(second.status, StatusCode::OK);
+    assert_eq!(second.body["id"], user_id);
+
+    let session = call(
+        &router,
+        "GET",
+        "/api/session",
+        None,
+        Some(&token),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(session.body["username_only"], true);
+    assert_eq!(session.body["registration"], false);
+    let csrf = session.body["csrf"].as_str().expect("csrf").to_string();
+
+    let register = call(
+        &router,
+        "POST",
+        "/api/auth/register",
+        Some(json!({"email": "other@example.com", "password": "correct horse battery"})),
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(register.status, StatusCode::FORBIDDEN);
+
+    // Sessions still use CSRF even without passwords.
+    let no_csrf = call(
+        &router,
+        "POST",
+        "/api/hosts",
+        Some(json!({"name": "Mac", "kind": "macos", "target": "mac.local"})),
+        Some(&token),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(no_csrf.status, StatusCode::FORBIDDEN);
+
+    let created = call(
+        &router,
+        "POST",
+        "/api/hosts",
+        Some(json!({"name": "Mac", "kind": "macos", "target": "mac.local"})),
+        Some(&token),
+        Some(&csrf),
+        None,
+    )
+    .await;
+    assert_eq!(created.status, StatusCode::CREATED);
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
 async fn protected_surfaces_require_auth_and_same_origin() {
     let app = harness();
     let unknown = call(

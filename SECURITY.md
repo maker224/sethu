@@ -47,6 +47,10 @@ authentication layer.
   wireless-debugging ports.
 - **Plaintext HTTP deployments** without a TLS proxy. Sethu logs a warning, but
   it cannot protect credentials on the wire by itself.
+- **Username-only mode does not verify identity.** `SETHU_AUTH=username` accepts
+  a name and creates the workspace on first use; anyone who can reach the port
+  and knows a username can enter it. Sessions/CSRF still apply, but treat the
+  username as a label, not a credential. Use only on a trusted LAN/VPN.
 - **Open access is a deliberate downgrade.** `SETHU_AUTH=open` removes
   authentication and CSRF; everyone who reaches the port controls the first
   account's devices and files. Only run it on a trusted LAN/VPN or behind an
@@ -68,8 +72,9 @@ authentication layer.
 - [ ] Set `SETHU_TRUST_PROXY=true` only when a local reverse proxy overwrites
       `X-Forwarded-*`.
 - [ ] Create the owner account, then `SETHU_ALLOW_REGISTRATION=false`.
-- [ ] Prefer `SETHU_AUTH=required`; if using `SETHU_AUTH=open`, put the server on
-      a VPN or trusted LAN and never port-forward it.
+- [ ] Prefer `SETHU_AUTH=required`; if using `SETHU_AUTH=username` or
+      `SETHU_AUTH=open`, put the server on a VPN or trusted LAN and never
+      port-forward it.
 - [ ] Set a sensible `SETHU_MAX_FILE_BYTES`, monitor disk space, and delete files
       you no longer need.
 - [ ] Expose Sethu over a VPN or an IP allow-list, not the open internet.

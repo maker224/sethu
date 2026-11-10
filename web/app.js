@@ -24,6 +24,7 @@ const state = {
   filter: "all",
   view: "devices",
   authOpen: false,
+  usernameOnly: false,
   maxFileBytes: 0,
 };
 
@@ -106,6 +107,7 @@ const authSubmit = $("#auth-submit");
 const registerTab = $("#register-tab");
 
 function setTab(tab) {
+  if (state.usernameOnly) return;
   state.tab = tab === "register" && state.registration ? "register" : "login";
   document.querySelectorAll(".tab").forEach((button) => {
     const selected = button.dataset.tab === state.tab;
@@ -126,12 +128,68 @@ function setTab(tab) {
   authError.textContent = "";
 }
 
+function configureAuthMode() {
+  const usernameMode = state.usernameOnly;
+  $("#auth-tabs").classList.toggle("hidden", usernameMode);
+  $("#auth-password-field").classList.toggle("hidden", usernameMode);
+  authPassword.required = !usernameMode;
+
+  authEmail.type = usernameMode ? "text" : "email";
+  authEmail.autocomplete = usernameMode ? "username" : "email";
+  authEmail.placeholder = usernameMode ? "your-name" : "you@example.com";
+  const label = authEmail.closest(".field")?.querySelector("span");
+  if (label) label.textContent = usernameMode ? "Username" : "Email";
+
+  $("#auth-footnote").textContent = usernameMode
+    ? "Username-only access does not verify identity: anyone who reaches this server and knows a username can open that workspace. Keep Sethu on a LAN or VPN."
+    : "Sessions use an HttpOnly, SameSite=Strict cookie. Run Sethu behind TLS before exposing it to the internet.";
+
+  if (usernameMode) {
+    state.tab = "login";
+    $("#auth-heading").textContent = "Enter your username";
+    $("#auth-subtitle").textContent = "No password. Your username opens its own devices and files.";
+    authSubmit.textContent = "Continue";
+    $("#auth-hint").textContent = "New username? An empty workspace is created automatically.";
+    authError.textContent = "";
+  } else {
+    setTab(state.tab);
+  }
+}
+
 registerTab.addEventListener("click", () => setTab("register"));
 $('.tab[data-tab="login"]').addEventListener("click", () => setTab("login"));
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   authError.textContent = "";
+
+  if (state.usernameOnly) {
+    const username = authEmail.value.trim();
+    if (!username) {
+      authError.textContent = "Enter a username.";
+      authEmail.focus();
+      return;
+    }
+    authSubmit.disabled = true;
+    authSubmit.textContent = "Opening…";
+    try {
+      await api("/api/auth/login", {
+        method: "POST",
+        body: { username },
+      });
+      await loadSession();
+      authForm.reset();
+      await enterDashboard();
+      toast(`Welcome, ${username}.`, "success");
+    } catch (error) {
+      authError.textContent = error.message;
+      authEmail.focus();
+    } finally {
+      authSubmit.disabled = false;
+      authSubmit.textContent = "Continue";
+    }
+    return;
+  }
 
   const email = authEmail.value.trim();
   const password = authPassword.value;
@@ -191,8 +249,9 @@ function showAuth() {
   }
   registerTab.classList.toggle("hidden", !state.registration);
   $("#auth-hint").classList.toggle("hidden", !state.registration);
-  if (!state.registration) setTab("login");
-  document.title = "Sethu — sign in";
+  configureAuthMode();
+  if (!state.registration && !state.usernameOnly) setTab("login");
+  document.title = state.usernameOnly ? "Sethu — enter username" : "Sethu — sign in";
 }
 
 async function enterDashboard() {
@@ -233,6 +292,7 @@ async function loadSession() {
   state.registration = Boolean(info.registration);
   state.version = info.version || "";
   state.authOpen = Boolean(info.auth_open);
+  state.usernameOnly = Boolean(info.username_only);
   state.maxFileBytes = Number(info.max_file_bytes) || 0;
   $("#version").textContent = state.version ? `v${state.version}` : "";
   $("#footer-version").textContent = state.version ? `v${state.version}` : "";

@@ -226,12 +226,17 @@ phone, download on the MacBook (or vice versa). It is not end-to-end encrypted,
 and the server operator can read stored files. The frontend exposes it as the
 **Files** tab next to **Devices**.
 
-## Open-access mode
+## Sign-in modes
 
-`SETHU_AUTH=open` makes every request resolve to the first account (creating a
-local owner if the server has none), hides the sign-in screen and skips CSRF and
-the login/registration endpoints. Origin/Host checks still apply. Intended for a
-single-user LAN/VPN deployment; never expose it directly to the internet.
+- `SETHU_AUTH=required` — email + password, Argon2id, registration.
+- `SETHU_AUTH=username` — the login handler accepts only `username`; unknown
+  names create a user row automatically. Sessions and CSRF stay enabled, but
+  identity is not verified. The frontend hides the tabs, password field and
+  registration controls and posts `{"username": "..."}`.
+- `SETHU_AUTH=open` — every request resolves to the first account (creating a
+  local owner if the server has none), hides the sign-in screen and skips CSRF
+  and the login/registration endpoints. Origin/Host checks still apply. Intended
+  for a single-user LAN/VPN deployment; never expose it directly to the internet.
 
 ## Frontend
 

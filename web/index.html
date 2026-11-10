@@ -166,7 +166,7 @@
             <p id="auth-subtitle">Welcome back. Pick up where you left off.</p>
           </div>
 
-          <div class="tabs" role="tablist" aria-label="Authentication">
+          <div id="auth-tabs" class="tabs" role="tablist" aria-label="Authentication">
             <button class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="login">Sign in</button>
             <button class="tab" type="button" role="tab" aria-selected="false" data-tab="register" id="register-tab">Create account</button>
           </div>
@@ -176,7 +176,7 @@
               <span>Email</span>
               <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" required />
             </label>
-            <label class="field">
+            <label id="auth-password-field" class="field">
               <span>Password</span>
               <input id="auth-password" type="password" autocomplete="current-password" placeholder="At least 10 characters" minlength="10" required />
             </label>
@@ -185,7 +185,7 @@
           </form>
 
           <p id="auth-hint" class="auth-hint">First run? Create the account that owns this server.</p>
-          <p class="auth-footnote">
+          <p id="auth-footnote" class="auth-footnote">
             Sessions use an HttpOnly, SameSite=Strict cookie. Run Sethu behind TLS before
             exposing it to the internet.
           </p>

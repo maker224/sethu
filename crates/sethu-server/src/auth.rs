@@ -86,6 +86,24 @@ pub fn clear_cookie(state: &AppState) -> String {
     format!("{SESSION_COOKIE}=; {}; Max-Age=0", cookie_attributes(state))
 }
 
+/// Validate a passwordless username. Identity is not proven in username mode;
+/// this only keeps the value clean and predictable.
+pub fn normalize_username(raw: &str) -> Result<String, AppError> {
+    let username = raw.trim().to_ascii_lowercase();
+    let valid = username.chars().count() >= 2
+        && username.chars().count() <= 80
+        && username
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '@' | '+'));
+    if valid {
+        Ok(username)
+    } else {
+        Err(AppError::BadRequest(
+            "usernames use 2-80 letters, digits, dots, dashes, underscores or @".into(),
+        ))
+    }
+}
+
 /// Validate an email without pulling in a regex engine. Good enough to reject
 /// obvious garbage; deliverability is out of scope.
 pub fn normalize_email(raw: &str) -> Result<String, AppError> {
@@ -196,6 +214,19 @@ pub fn dummy_password_hash() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn username_rules() {
+        assert_eq!(normalize_username(" Mouli ").unwrap(), "mouli");
+        assert_eq!(
+            normalize_username("moulitholusuri@gmail.com").unwrap(),
+            "moulitholusuri@gmail.com"
+        );
+        assert!(normalize_username("a").is_err());
+        assert!(normalize_username("has space").is_err());
+        assert!(normalize_username("semi;colon").is_err());
+        assert!(normalize_username(&"a".repeat(81)).is_err());
+    }
 
     #[test]
     fn email_validation() {

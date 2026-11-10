@@ -54,15 +54,30 @@ cd sethu
 cargo run --release
 ```
 
-Open <http://localhost:8080> and create the first account. Then add a device.
+Open <http://localhost:8080> and pick a username. In username mode there is no
+password and no separate registration: a new name gets an empty workspace, and
+the same name brings back its devices and files. Then add a device.
 
-To remove the sign-in screen entirely, run with `SETHU_AUTH=open`. Every visitor
-then shares the first account's workspace (devices and files). Only do this on a
-trusted LAN, behind a VPN, or with another authentication proxy in front:
+### Sign-in modes
+
+| `SETHU_AUTH` | Behaviour |
+| --- | --- |
+| `required` (default) | Email + password, account registration, Argon2id hashing |
+| `username` | Username only — no password, no registration; unknown names create a workspace |
+| `open` | No sign-in at all; everyone shares the first workspace |
 
 ```bash
-SETHU_AUTH=open cargo run --release
+SETHU_AUTH=username cargo run --release
 ```
+
+![Username-only sign-in](docs/username-signin.png)
+
+Username mode still creates an HttpOnly session and keeps CSRF protection, but it
+does **not verify identity**: anyone who can reach the server and knows a
+username can open that workspace. Prefer `required` on the open internet; use
+`username` or `open` only on a trusted LAN or VPN. If you switch from open mode
+and want to keep the existing data, sign in with the old account's email as the
+username.
 
 During development, serve the frontend from disk so edits are instant:
 
@@ -264,7 +279,7 @@ See `.env.example`.
 | `SETHU_DATA_DIR` | `./data` | Directory for `sethu.json` (mode 0600) |
 | `SETHU_PUBLIC_URL` | – | Canonical URL, e.g. `https://remote.example.com`; required behind a proxy |
 | `SETHU_COOKIE_SECURE` | auto (`true` with an `https://` public URL) | Marks the session cookie `Secure` |
-| `SETHU_AUTH` | `required` | `required` or `open` (no sign-in; trusted LAN only) |
+| `SETHU_AUTH` | `required` | `required`, `username` (no password) or `open` (no sign-in; trusted LAN only) |
 | `SETHU_MAX_FILE_BYTES` | `2147483648` | Maximum size of one uploaded file |
 | `SETHU_ALLOW_REGISTRATION` | `true` | Set `false` after creating your account |
 | `SETHU_SESSION_TTL_HOURS` | `168` | Login lifetime |
@@ -328,8 +343,8 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | --- | --- | --- |
 | `GET` | `/api/health` | Liveness, version |
 | `GET` | `/api/session` | Current user, CSRF token, registration flag |
-| `POST` | `/api/auth/register` | Create account (`email`, `password`) |
-| `POST` | `/api/auth/login` | Sign in |
+| `POST` | `/api/auth/register` | Create account (`email`, `password`; secure mode only) |
+| `POST` | `/api/auth/login` | Sign in (`username` in username mode; email/password otherwise) |
 | `POST` | `/api/auth/logout` | Revoke the session |
 | `GET` | `/api/hosts` | List your devices |
 | `POST` | `/api/hosts` | Add device (`name`, `kind`: `macos`\|`windows`\|`ios`\|`android`, `target`, `notes`) |
@@ -367,6 +382,10 @@ WebSocket details and the iPhone/Android message schemas are documented in
 - **Open access is a deliberate downgrade.** With `SETHU_AUTH=open` there is no
   sign-in and everyone who reaches the port shares one workspace. Keep it on a
   VPN or trusted LAN, or put an authenticating proxy in front.
+- **Username-only mode does not verify identity.** With `SETHU_AUTH=username`,
+  a username is a name, not a credential; anyone can type someone else's name
+  and enter their workspace. Sessions and CSRF still protect the API, but there
+  is no authentication. Use it only on a trusted network.
 - **Uploads** are plain files on disk, served as attachments. Sethu does not
   scan for malware; treat uploads as untrusted and keep the data directory
   private (mode `0600`).

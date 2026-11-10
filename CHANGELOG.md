@@ -4,6 +4,24 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-11-10
+
+### Added
+
+- **Username-only sign-in** (`SETHU_AUTH=username`): a single username field,
+  no password, no registration step. A new username creates its own workspace
+  automatically; the same username returns to it.
+- Frontend adapts the auth card by mode: username-only hides the login/register
+  tabs and password field and posts `{"username": "..."}`.
+- Integration tests for automatic workspace creation, username reuse, blocked
+  registration and CSRF in username mode.
+
+### Changed
+
+- Existing account data can be reached in username mode by entering the old
+  email address as the username.
+- Secure password mode (`required`) and open mode remain available.
+
 ## [0.4.0] — 2026-11-10
 
 ### Added
@@ -113,3 +131,4 @@ Initial public release.
 [0.2.0]: https://github.com/your-org/sethu/releases/tag/v0.2.0
 [0.3.0]: https://github.com/your-org/sethu/releases/tag/v0.3.0
 [0.4.0]: https://github.com/your-org/sethu/releases/tag/v0.4.0
+[0.5.0]: https://github.com/your-org/sethu/releases/tag/v0.5.0
