@@ -42,8 +42,9 @@ authentication layer.
 - **WebDriverAgent has no authentication.** Port 8100 grants full device control.
   Keep it on loopback, a private LAN or a VPN.
 - **adb grants shell access to the Android device.** Anyone with access to the
-  adb server can run commands as the `shell` user. Keep the Sethu host and the
-  adb server trusted; never expose port 5037 or wireless-debugging ports.
+  adb server can run commands as the `shell` user and write to shared storage.
+  Keep the Sethu host and the adb server trusted; never expose port 5037 or
+  wireless-debugging ports.
 - **Plaintext HTTP deployments** without a TLS proxy. Sethu logs a warning, but
   it cannot protect credentials on the wire by itself.
 - **Open access is a deliberate downgrade.** `SETHU_AUTH=open` removes

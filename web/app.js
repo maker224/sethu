@@ -217,7 +217,7 @@ function setView(view) {
   });
   $("#dashboard-heading").textContent = filesView ? "File sharing" : "Your devices";
   $("#dashboard-note").textContent = filesView
-    ? "Send any file from Android, Windows, iPhone or iPad, then download it on your MacBook or any other device."
+    ? "Move any file between this MacBook and your Android, Windows, iPhone or iPad devices — then download it wherever you need it."
     : "Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.";
   if (filesView) loadFiles();
 }
@@ -573,6 +573,13 @@ function renderFiles() {
     download.setAttribute("aria-label", `Download ${file.name}`);
     download.append(icon("i-download"));
 
+    const share = el("button", "icon-btn");
+    share.type = "button";
+    share.dataset.action = "share-file";
+    share.title = "Share";
+    share.setAttribute("aria-label", `Share ${file.name}`);
+    share.append(icon("i-share"));
+
     const remove = el("button", "icon-btn danger");
     remove.type = "button";
     remove.dataset.action = "delete-file";
@@ -580,17 +587,79 @@ function renderFiles() {
     remove.setAttribute("aria-label", `Delete ${file.name}`);
     remove.append(icon("i-trash"));
 
-    row.append(fileIcon, main, download, remove);
+    row.append(fileIcon, main, share, download, remove);
     filesList.append(row);
   }
 }
 
+const shareDialog = $("#share-dialog");
+
+function openShareDialog(file) {
+  $("#share-file-name").textContent = `${file.name} · ${formatBytes(file.size)}`;
+  $("#share-link").value = `${location.origin}/api/files/${encodeURIComponent(file.id)}/download`;
+
+  const devices = $("#share-android-devices");
+  devices.replaceChildren();
+  const androidHosts = state.hosts.filter((host) => host.kind === "android");
+  $("#share-android-section").classList.toggle("hidden", androidHosts.length === 0);
+  for (const host of androidHosts) {
+    const button = el("button", "btn btn-secondary btn-sm", `Send to ${host.name}`);
+    button.type = "button";
+    button.addEventListener("click", () => sendToAndroid(file, host, button));
+    devices.append(button);
+  }
+
+  if (typeof shareDialog.showModal === "function") shareDialog.showModal();
+  else shareDialog.setAttribute("open", "");
+}
+
+async function sendToAndroid(file, host, button) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Sending…";
+  try {
+    const result = await api(`/api/files/${file.id}/send`, {
+      method: "POST",
+      body: { host_id: host.id },
+    });
+    toast(result.message || `Sent to ${host.name}.`, "success");
+  } catch (error) {
+    toast(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
+$("#copy-share-link").addEventListener("click", async () => {
+  const input = $("#share-link");
+  try {
+    await navigator.clipboard.writeText(input.value);
+    toast("Download link copied.", "success");
+  } catch {
+    input.select();
+    try {
+      document.execCommand("copy");
+      toast("Download link copied.", "success");
+    } catch {
+      toast("Could not copy — select the link and copy it manually.", "error");
+    }
+  }
+});
+
 filesList.addEventListener("click", async (event) => {
+  const row = event.target.closest("[data-file-id]");
+  if (!row) return;
+  const file = state.files.find((item) => item.id === row.dataset.fileId);
+  if (!file) return;
+
+  if (event.target.closest('button[data-action="share-file"]')) {
+    openShareDialog(file);
+    return;
+  }
+
   const button = event.target.closest('button[data-action="delete-file"]');
   if (!button) return;
-  const row = button.closest("[data-file-id]");
-  const file = state.files.find((item) => item.id === row?.dataset.fileId);
-  if (!file) return;
   if (!window.confirm(`Delete “${file.name}”?`)) return;
 
   button.disabled = true;

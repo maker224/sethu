@@ -11,21 +11,29 @@ use axum::{
     extract::{DefaultBodyLimit, Multipart, Path as AxumPath, State},
     http::{header, HeaderValue, StatusCode},
     response::Response,
-    routing::{delete, get},
+    routing::{delete, get, post},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, error::AppError, state::AppState, store::StoredFile};
+use crate::{
+    adb::AdbClient,
+    auth::AuthUser,
+    error::AppError,
+    state::AppState,
+    store::{HostKind, StoredFile},
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/files", get(list_files).post(upload_file))
         .route("/api/files/{id}", delete(delete_file))
         .route("/api/files/{id}/download", get(download_file))
+        .route("/api/files/{id}/send", post(send_file))
         // Uploads are streamed and capped manually in the handler.
         .layer(DefaultBodyLimit::disable())
 }
@@ -187,6 +195,50 @@ async fn delete_file(
     let _ = tokio::fs::remove_file(path).await;
     tracing::info!(user_id = %user.user.id, file_id = %id, "file removed");
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct SendRequest {
+    host_id: Uuid,
+}
+
+/// Push a shared file into a connected Android device's Downloads folder.
+async fn send_file(
+    State(state): State<AppState>,
+    user: AuthUser,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(body): Json<SendRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let record = state
+        .store
+        .file(id, user.user.id)
+        .ok_or_else(|| AppError::NotFound("file not found".into()))?;
+    let host = state
+        .store
+        .host(body.host_id, user.user.id)
+        .ok_or_else(|| AppError::NotFound("device not found".into()))?;
+    if host.kind != HostKind::Android {
+        return Err(AppError::BadRequest(
+            "only Android devices can receive files directly".into(),
+        ));
+    }
+    let path = file_path(&state, &record);
+    if !path.is_file() {
+        return Err(AppError::NotFound("file is missing from disk".into()));
+    }
+
+    let adb = AdbClient::new(&state.cfg.adb_path, &host.target, state.cfg.adb_timeout);
+    adb.push_download(&path, &record.name).await?;
+    tracing::info!(
+        user_id = %user.user.id,
+        file_id = %record.id,
+        host_id = %host.id,
+        "file pushed to android"
+    );
+    Ok(Json(json!({
+        "ok": true,
+        "message": format!("Sent {} to {} (Downloads)", record.name, host.name),
+    })))
 }
 
 fn files_dir(state: &AppState, owner: Uuid) -> PathBuf {

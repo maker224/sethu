@@ -4,6 +4,23 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-11-10
+
+### Added
+
+- **Bidirectional file sharing** is now explicit: the Files tab works from the
+  MacBook too, with a **Share** action on every file.
+- **Send to Android** pushes a shared file directly into the phone or tablet's
+  Downloads folder over adb (`POST /api/files/{id}/send`).
+- **Copy download link** for Windows, Android or any browser that cannot be
+  pushed to directly.
+- File tests now cover the adb push path with the fake-adb harness.
+
+### Changed
+
+- Files copy makes the direction clear: upload from this device, download on
+  any other.
+
 ## [0.3.0] — 2026-11-10
 
 ### Added
@@ -95,3 +112,4 @@ Initial public release.
 [0.1.0]: https://github.com/your-org/sethu/releases/tag/v0.1.0
 [0.2.0]: https://github.com/your-org/sethu/releases/tag/v0.2.0
 [0.3.0]: https://github.com/your-org/sethu/releases/tag/v0.3.0
+[0.4.0]: https://github.com/your-org/sethu/releases/tag/v0.4.0

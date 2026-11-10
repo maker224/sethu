@@ -214,6 +214,9 @@ PNG frames.
 - `GET /api/files` lists metadata; `GET /api/files/{id}/download` streams with
   `Content-Disposition: attachment` and `nosniff`; `DELETE /api/files/{id}`
   removes metadata and contents.
+- `POST /api/files/{id}/send` pushes a file to a configured Android host with
+  `adb push` into `/sdcard/Download/`. Browsers that cannot be pushed to use the
+  copyable download link instead.
 - JSON endpoints keep a 64 KiB body limit; the file router disables it and relies
   on the streaming cap. This is verified by an integration test that uploads
   100 KB.

@@ -1386,6 +1386,57 @@ select:focus-visible {
   margin-bottom: 10px;
 }
 
+/* Share dialog used by the Files tab. */
+.share-dialog {
+  width: min(540px, calc(100vw - 32px));
+}
+
+.share-section + .share-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.share-section h3 {
+  font-size: 0.93rem;
+  letter-spacing: -0.01em;
+}
+
+.share-section .hint {
+  margin-top: 3px;
+}
+
+.share-link-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.share-link {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(3, 7, 15, 0.62);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.share-link:focus {
+  outline: none;
+  border-color: rgba(94, 234, 212, 0.55);
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.13);
+}
+
+.share-devices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+
 /* ---------- toasts ---------- */
 
 .toasts {

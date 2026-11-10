@@ -210,12 +210,14 @@ pixels are converted to logical points using the scale reported by
 ## Share files between devices
 
 The **Files** tab is a shared drop box on the Sethu server. It accepts any
-format, multiple files at once, and works from every browser — so all of these
-flows are the same three steps:
+format, multiple files at once, and works in both directions from every
+browser:
 
 1. Run Sethu on the MacBook (or on a server both devices can reach).
-2. On Android or Windows, open `http://<sethu-host>:8080` → **Files** → upload.
-3. On the MacBook, open the same page → **Files** → download.
+2. On **any** device — MacBook, Android, Windows, iPhone/iPad — open
+   `http://<sethu-host>:8080` → **Files** → upload.
+3. On another device open the same page → **Files** → download. On each file,
+   **Share** also gives you a copyable link and, for Android, a direct push.
 
 | Scenario | Works because |
 | --- | --- |
@@ -223,7 +225,9 @@ flows are the same three steps:
 | **Windows → MacBook** | Same flow from Edge/Chrome on Windows |
 | **Android + Windows → MacBook** | Both upload into the same workspace list |
 | **iPhone/iPad → MacBook** | Safari's file picker uploads Photos, Files or camera captures |
-| **MacBook → Android/Windows** | Upload on the MacBook, download on the other device |
+| **MacBook → Android** | Upload on the MacBook, then **Share → Send to Android** pushes it to `/sdcard/Download/` via adb |
+| **MacBook → Windows** | Upload on the MacBook, then **Share → Copy** and open the link in the Windows browser |
+| **MacBook → any browser** | Copy the download link from **Share** and open it on the other device |
 
 ![Files tab with uploads](docs/files.png)
 
@@ -232,6 +236,11 @@ Behaviour:
 - Contents stream to `data/files/<workspace>/<uuid>`; metadata lives in
   `sethu.json`. Empty files are allowed.
 - The default maximum is 2 GiB per file (`SETHU_MAX_FILE_BYTES`).
+- **Share** on a file copies an authenticated download link for Windows or any
+  browser. For a connected Android device, **Send to Android** runs
+  `adb push` into its public Downloads folder (no download step on the phone).
+  Direct push needs adb on the Sethu host and the device authorized; the copy
+  link works everywhere.
 - Downloads are forced `Content-Disposition: attachment` with `nosniff`, so an
   uploaded HTML or SVG cannot execute on the Sethu origin.
 - Files are visible to everyone with access to the workspace and are **not**
@@ -331,6 +340,7 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `GET` | `/api/files` | List shared files in the workspace |
 | `POST` | `/api/files` | Multipart upload (`file` field, any format) |
 | `GET` | `/api/files/{id}/download` | Streamed attachment download |
+| `POST` | `/api/files/{id}/send` | Push a file to an Android device's Downloads (`host_id`) |
 | `DELETE` | `/api/files/{id}` | Delete a file and its contents |
 | `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |
 | `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands (iPhone/iPad) |
@@ -434,7 +444,8 @@ Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **Single-user devices:** devices belong to the account that added them; no
   sharing between accounts yet.
 - **No peer-to-peer or end-to-end encrypted file transfer**, audio, multi-monitor
-  selection, RDP or recording in v0.3. Files live in a shared server workspace.
+  selection, RDP or recording in v0.4. Files live in a shared server workspace;
+  Android pushes use adb and everything else uses the browser.
 
 ### Roadmap
 

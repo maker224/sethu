@@ -35,6 +35,7 @@ case "$*" in
   *"exec-out screencap -p"*) cat "{}" ;;
   *"get-state"*) echo device ;;
   *"shell input "*) exit 0 ;;
+  *"push "*) exit 0 ;;
   *) echo "unexpected adb args: $*" >&2; exit 1 ;;
 esac
 "#,
@@ -197,6 +198,45 @@ esac
     assert!(
         log.contains("shell input keyevent 3"),
         "missing keyevent in log:\n{log}"
+    );
+
+    // MacBook → Android: upload a file, then push it to Downloads via adb.
+    let part = reqwest::multipart::Part::bytes(b"note from mac".to_vec())
+        .file_name("note.txt")
+        .mime_str("text/plain")
+        .expect("mime");
+    let uploaded: Value = client
+        .post(format!("{base}/api/files"))
+        .header("cookie", &cookie)
+        .header("x-sethu-csrf", &csrf)
+        .header("origin", &base)
+        .multipart(reqwest::multipart::Form::new().part("file", part))
+        .send()
+        .await
+        .expect("upload")
+        .json()
+        .await
+        .expect("upload json");
+    let file_id = uploaded["id"].as_str().expect("file id").to_string();
+
+    let sent = client
+        .post(format!("{base}/api/files/{file_id}/send"))
+        .header("cookie", &cookie)
+        .header("x-sethu-csrf", &csrf)
+        .header("origin", &base)
+        .json(&json!({"host_id": host_id}))
+        .send()
+        .await
+        .expect("send file");
+    assert_eq!(sent.status(), reqwest::StatusCode::OK);
+    let sent_body: Value = sent.json().await.expect("send json");
+    assert_eq!(sent_body["ok"], true);
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let log = std::fs::read_to_string(&log_path).expect("adb log");
+    assert!(
+        log.contains("push") && log.contains("/sdcard/Download/note.txt"),
+        "missing adb push in log:\n{log}"
     );
 
     let _ = socket.close(None).await;

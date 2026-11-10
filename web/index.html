@@ -86,6 +86,12 @@
         <path d="M12 4v12M7 11l5 5 5-5" />
         <path d="M4 20h16" />
       </symbol>
+      <symbol id="i-share" viewBox="0 0 24 24">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+      </symbol>
       <symbol id="i-alert" viewBox="0 0 24 24">
         <path d="M12 3 2.5 20h19Z" />
         <path d="M12 9v5M12 17.5h.01" />
@@ -275,7 +281,7 @@
           <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload files to share">
             <div class="dropzone-icon"><svg class="icon"><use href="#i-upload" /></svg></div>
             <h3>Drop files here to share</h3>
-            <p>Any format · multiple files · upload from Android, Windows, iPhone, iPad or any browser</p>
+            <p>Any format · multiple files · upload from this device, then download on any other</p>
             <button id="pick-files" class="btn btn-primary" type="button">
               <svg class="icon"><use href="#i-plus" /></svg>
               Choose files
@@ -299,8 +305,9 @@
           <p id="files-empty" class="files-empty hidden">No files yet. Uploads from any of your devices appear here.</p>
           <p class="files-note">
             Files are stored on this Sethu server, so downloads land on whichever device you use.
-            Uploads are visible to everyone with access to this workspace. Arbitrary files are
-            served as attachments and not executed.
+            Use <strong>Share</strong> on a file to copy a download link or push it straight to an
+            Android device's Downloads folder. Uploads are visible to everyone with access to this
+            workspace; arbitrary files are served as attachments and not executed.
           </p>
         </div>
       </section>
@@ -385,6 +392,38 @@
         <div class="dialog-foot">
           <button id="host-cancel" class="btn btn-ghost" type="button">Cancel</button>
           <button id="host-submit" class="btn btn-primary" type="submit">Add device</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="share-dialog" class="dialog share-dialog" aria-labelledby="share-title">
+      <form method="dialog">
+        <div class="dialog-head">
+          <div>
+            <h2 id="share-title">Share file</h2>
+            <p id="share-file-name" class="section-note"></p>
+          </div>
+          <button class="icon-btn" value="cancel" aria-label="Close">
+            <svg class="icon"><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <section class="share-section">
+            <h3>Windows, Android or any browser</h3>
+            <p class="hint">Copy this link and open it on the other device to download. In secure mode that device must be signed in.</p>
+            <div class="share-link-row">
+              <input id="share-link" class="share-link" readonly />
+              <button id="copy-share-link" class="btn btn-secondary" type="button">Copy</button>
+            </div>
+          </section>
+          <section id="share-android-section" class="share-section">
+            <h3>Send directly to Android</h3>
+            <p class="hint">Pushes the file to the phone or tablet's Downloads folder with adb.</p>
+            <div id="share-android-devices" class="share-devices"></div>
+          </section>
+        </div>
+        <div class="dialog-foot">
+          <button class="btn btn-secondary" value="cancel">Done</button>
         </div>
       </form>
     </dialog>

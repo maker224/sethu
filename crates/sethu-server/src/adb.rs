@@ -145,6 +145,19 @@ impl AdbClient {
         .await
         .map(|_| ())
     }
+
+    /// Push a local file into the device's public Downloads folder.
+    pub async fn push_download(&self, local: &std::path::Path, name: &str) -> Result<(), AppError> {
+        let safe_name = crate::files::sanitize_filename(name)
+            .ok_or_else(|| AppError::BadRequest("invalid filename".into()))?;
+        self.run(vec![
+            "push".into(),
+            local.to_string_lossy().into_owned(),
+            format!("/sdcard/Download/{safe_name}"),
+        ])
+        .await
+        .map(|_| ())
+    }
 }
 
 /// `adb shell input text` interprets `%s` as a space and goes through the
