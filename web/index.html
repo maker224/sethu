@@ -71,6 +71,21 @@
         <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
         <circle cx="12" cy="13" r="3.5" />
       </symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24">
+        <path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+      </symbol>
+      <symbol id="i-file" viewBox="0 0 24 24">
+        <path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7Z" />
+        <path d="M14 3v4h4" />
+      </symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24">
+        <path d="M12 16V4M7 9l5-5 5 5" />
+        <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 4v12M7 11l5 5 5-5" />
+        <path d="M4 20h16" />
+      </symbol>
       <symbol id="i-alert" viewBox="0 0 24 24">
         <path d="M12 3 2.5 20h19Z" />
         <path d="M12 9v5M12 17.5h.01" />
@@ -112,8 +127,8 @@
           <h1>Your Mac, PC and phones,<br /><span class="gradient-text">on any screen.</span></h1>
           <p class="lede">
             Sethu is a small Rust server that puts your Mac, Windows PC, iPhone, iPad and
-            Android devices in a browser tab. Use it from Windows, Android, Linux or an
-            iPad — no client installs, no third-party cloud.
+            Android devices in a browser tab — and moves files between them. Use it from
+            Windows, Android, Linux or an iPad: no client installs, no third-party cloud.
           </p>
           <ul class="feature-list">
             <li>
@@ -127,6 +142,10 @@
             <li>
               <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
               <div><strong>Yours alone</strong><span>Accounts, sessions and device list live on your server. Device passwords are never stored.</span></div>
+            </li>
+            <li>
+              <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
+              <div><strong>Any file, any format</strong><span>Upload from Android, Windows, iPhone or iPad and download on your MacBook from the shared Files tab.</span></div>
             </li>
             <li>
               <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
@@ -172,7 +191,7 @@
           <div>
             <p class="eyebrow"><span class="eyebrow-dot"></span> Connected workspace</p>
             <h2 id="dashboard-heading">Your devices</h2>
-            <p class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
+            <p id="dashboard-note" class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
           </div>
           <button id="add-host" class="btn btn-primary" type="button">
             <svg class="icon"><use href="#i-plus" /></svg>
@@ -180,6 +199,18 @@
           </button>
         </div>
 
+        <div class="workspace-tabs" role="tablist" aria-label="Workspace">
+          <button id="tab-devices" class="workspace-tab is-active" type="button" role="tab" aria-selected="true" data-view="devices">
+            <svg class="icon"><use href="#i-mac" /></svg>
+            Devices
+          </button>
+          <button id="tab-files" class="workspace-tab" type="button" role="tab" aria-selected="false" data-view="files">
+            <svg class="icon"><use href="#i-folder" /></svg>
+            Files
+          </button>
+        </div>
+
+        <div id="devices-panel">
         <div id="host-filters" class="filter-tabs hidden" role="tablist" aria-label="Filter devices">
           <button class="filter-tab is-active" type="button" role="tab" aria-selected="true" data-filter="all">All</button>
           <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="macos">Mac</button>
@@ -237,6 +268,40 @@
             </ol>
             <p class="tip-note">adb grants shell access to the device. Keep the Sethu host and adb trusted.</p>
           </div>
+        </div>
+        </div>
+
+        <div id="files-panel" class="files-panel hidden">
+          <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload files to share">
+            <div class="dropzone-icon"><svg class="icon"><use href="#i-upload" /></svg></div>
+            <h3>Drop files here to share</h3>
+            <p>Any format · multiple files · upload from Android, Windows, iPhone, iPad or any browser</p>
+            <button id="pick-files" class="btn btn-primary" type="button">
+              <svg class="icon"><use href="#i-plus" /></svg>
+              Choose files
+            </button>
+            <input id="file-input" type="file" multiple hidden />
+          </div>
+
+          <div id="upload-progress" class="upload-progress hidden">
+            <div class="upload-row">
+              <span id="upload-label">Uploading…</span>
+              <span id="upload-percent" class="mono"></span>
+            </div>
+            <div class="progress-track"><div id="upload-bar" class="progress-bar"></div></div>
+          </div>
+
+          <div class="files-head">
+            <h3>Shared files</h3>
+            <span id="files-total" class="files-total"></span>
+          </div>
+          <div id="files-list" class="files-list" aria-live="polite"></div>
+          <p id="files-empty" class="files-empty hidden">No files yet. Uploads from any of your devices appear here.</p>
+          <p class="files-note">
+            Files are stored on this Sethu server, so downloads land on whichever device you use.
+            Uploads are visible to everyone with access to this workspace. Arbitrary files are
+            served as attachments and not executed.
+          </p>
         </div>
       </section>
     </main>

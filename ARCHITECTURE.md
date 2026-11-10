@@ -69,9 +69,17 @@ two WebSocket bridges. There is no database, message broker or worker process.
   "sessions": [
     {"token_hash": "sha256(token)", "csrf": "random-hex",
      "user_id": "uuid", "created_at": 1730000002, "expires_at": 1730604802}
+  ],
+  "files": [
+    {"id": "uuid", "owner_id": "uuid", "name": "report.pdf",
+     "disk_name": "uuid", "size": 12345, "mime": "application/pdf",
+     "created_at": 1730000003}
   ]
 }
 ```
+
+File contents live under `SETHU_DATA_DIR/files/<owner_id>/<disk_name>`. The
+metadata is in the JSON document; the bytes are streamed separately.
 
 Mutations clone the in-memory document, apply the change, serialise to
 `sethu.json.tmp`, `fsync`-free rename over the original, then swap the in-memory
@@ -193,13 +201,43 @@ PNG frames.
 {"type":"ping"}
 ```
 
+## Shared files
+
+`files.rs` is a separate router with its own body limit:
+
+- `POST /api/files` accepts one file per request (the UI sends files
+  sequentially). The filename is reduced to a sanitised basename (180 chars max,
+  control characters removed, any extension allowed) and the bytes stream to
+  `data/files/<owner>/<uuid>`.
+- The handler enforces `SETHU_MAX_FILE_BYTES` while streaming and deletes the
+  partial file on error or over-limit.
+- `GET /api/files` lists metadata; `GET /api/files/{id}/download` streams with
+  `Content-Disposition: attachment` and `nosniff`; `DELETE /api/files/{id}`
+  removes metadata and contents.
+- JSON endpoints keep a 64 KiB body limit; the file router disables it and relies
+  on the streaming cap. This is verified by an integration test that uploads
+  100 KB.
+
+This is a shared server workspace, not peer-to-peer transfer. Upload from a
+phone, download on the MacBook (or vice versa). It is not end-to-end encrypted,
+and the server operator can read stored files. The frontend exposes it as the
+**Files** tab next to **Devices**.
+
+## Open-access mode
+
+`SETHU_AUTH=open` makes every request resolve to the first account (creating a
+local owner if the server has none), hides the sign-in screen and skips CSRF and
+the login/registration endpoints. Origin/Host checks still apply. Intended for a
+single-user LAN/VPN deployment; never expose it directly to the internet.
+
 ## Frontend
 
 Plain ES modules and one stylesheet. No bundler, no framework, no build step.
 
-- `app.js` handles boot, login/register, device CRUD, platform filter tabs and
-  toasts. It never uses `innerHTML` with user data; DOM nodes are constructed and
-  filled with `textContent`.
+- `app.js` handles boot, login/register, device CRUD, platform filter tabs,
+  the shared **Files** workspace (drag/drop, sequential uploads with progress,
+  downloads, delete) and toasts. It never uses `innerHTML` with user data; DOM
+  nodes are constructed and filled with `textContent`.
 - `viewer.js` is the shell: loads the host, picks a viewer module, renders its
   action buttons, handles fullscreen/disconnect/reconnect.
 - `viewer-vnc.js` dynamically imports noVNC from `/vendor/novnc/core/rfb.js` if
@@ -223,7 +261,9 @@ to one file. `SETHU_WEB_DIR` overrides them for development.
   rejection, host CRUD and logout invalidation.
 - WebSocket tests use a fake RFB server and a fake `adb` executable to verify
   byte relay, frame streaming, coordinate conversion and input injection.
-- No test needs a Mac, a phone or network access.
+- File tests cover multipart uploads above the JSON body limit, download bytes
+  and headers, deletion, oversize rejection with cleanup, sanitised filenames
+  and open-access mode.- No test needs a Mac, a phone or network access.
 
 ## Design choices and trade-offs
 

@@ -17,10 +17,14 @@ const state = {
   user: null,
   csrf: "",
   hosts: [],
+  files: [],
   registration: true,
   version: "",
   tab: "login",
   filter: "all",
+  view: "devices",
+  authOpen: false,
+  maxFileBytes: 0,
 };
 
 class ApiError extends Error {
@@ -167,6 +171,9 @@ $("#logout").addEventListener("click", async () => {
   state.user = null;
   state.csrf = "";
   state.hosts = [];
+  state.files = [];
+  state.view = "devices";
+  state.filter = "all";
   showAuth();
   toast("Signed out.");
 });
@@ -177,6 +184,11 @@ function showAuth() {
   $("#dashboard-view").classList.add("hidden");
   $("#auth-view").classList.remove("hidden");
   $("#logout").classList.add("hidden");
+  if (state.authOpen) {
+    $("#auth-view").classList.add("hidden");
+    $("#dashboard-view").classList.remove("hidden");
+    return;
+  }
   registerTab.classList.toggle("hidden", !state.registration);
   $("#auth-hint").classList.toggle("hidden", !state.registration);
   if (!state.registration) setTab("login");
@@ -186,10 +198,33 @@ function showAuth() {
 async function enterDashboard() {
   $("#auth-view").classList.add("hidden");
   $("#dashboard-view").classList.remove("hidden");
-  $("#logout").classList.remove("hidden");
+  $("#logout").classList.toggle("hidden", state.authOpen);
   document.title = "Sethu — your devices";
+  setView("devices");
   await loadHosts();
 }
+
+function setView(view) {
+  const filesView = view === "files";
+  state.view = filesView ? "files" : "devices";
+  $("#devices-panel").classList.toggle("hidden", filesView);
+  $("#files-panel").classList.toggle("hidden", !filesView);
+  $("#add-host").classList.toggle("hidden", filesView);
+  document.querySelectorAll(".workspace-tab").forEach((button) => {
+    const active = button.dataset.view === state.view;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  $("#dashboard-heading").textContent = filesView ? "File sharing" : "Your devices";
+  $("#dashboard-note").textContent = filesView
+    ? "Send any file from Android, Windows, iPhone or iPad, then download it on your MacBook or any other device."
+    : "Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.";
+  if (filesView) loadFiles();
+}
+
+document.querySelectorAll(".workspace-tab").forEach((button) => {
+  button.addEventListener("click", () => setView(button.dataset.view));
+});
 
 async function loadSession() {
   const info = await api("/api/session");
@@ -197,6 +232,8 @@ async function loadSession() {
   state.csrf = info.csrf || "";
   state.registration = Boolean(info.registration);
   state.version = info.version || "";
+  state.authOpen = Boolean(info.auth_open);
+  state.maxFileBytes = Number(info.max_file_bytes) || 0;
   $("#version").textContent = state.version ? `v${state.version}` : "";
   $("#footer-version").textContent = state.version ? `v${state.version}` : "";
   return info;
@@ -465,6 +502,228 @@ hostForm.addEventListener("submit", async (event) => {
     hostSubmit.textContent = "Add device";
   }
 });
+
+// ----- shared files ------------------------------------------------------
+
+const fileInput = $("#file-input");
+const dropzone = $("#dropzone");
+const uploadProgress = $("#upload-progress");
+const filesList = $("#files-list");
+let uploading = false;
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let scaled = value;
+  let unit = -1;
+  do {
+    scaled /= 1024;
+    unit += 1;
+  } while (scaled >= 1024 && unit < units.length - 1);
+  return `${scaled >= 10 ? Math.round(scaled) : scaled.toFixed(1)} ${units[unit]}`;
+}
+
+function formatDate(unix) {
+  return dateFormatter.format(new Date(Number(unix) * 1000));
+}
+
+async function loadFiles() {
+  try {
+    state.files = (await api("/api/files")) || [];
+    renderFiles();
+  } catch (error) {
+    if (error.status === 401) {
+      showAuth();
+      return;
+    }
+    toast(error.message, "error");
+  }
+}
+
+function renderFiles() {
+  filesList.replaceChildren();
+  const total = state.files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+  $("#files-total").textContent = state.files.length
+    ? `${state.files.length} file${state.files.length === 1 ? "" : "s"} · ${formatBytes(total)}`
+    : "";
+  $("#files-empty").classList.toggle("hidden", state.files.length !== 0);
+
+  for (const file of state.files) {
+    const row = el("div", "file-row");
+    row.dataset.fileId = file.id;
+
+    const fileIcon = el("div", "file-icon");
+    fileIcon.append(icon("i-file"));
+
+    const main = el("div", "file-main");
+    const name = el("p", "file-name", file.name);
+    name.title = file.name;
+    main.append(name, el("p", "file-meta", `${formatBytes(file.size)} · ${formatDate(file.created_at)}`));
+
+    const download = el("a", "icon-btn");
+    download.href = `/api/files/${encodeURIComponent(file.id)}/download`;
+    download.setAttribute("download", file.name);
+    download.title = "Download";
+    download.setAttribute("aria-label", `Download ${file.name}`);
+    download.append(icon("i-download"));
+
+    const remove = el("button", "icon-btn danger");
+    remove.type = "button";
+    remove.dataset.action = "delete-file";
+    remove.title = "Delete";
+    remove.setAttribute("aria-label", `Delete ${file.name}`);
+    remove.append(icon("i-trash"));
+
+    row.append(fileIcon, main, download, remove);
+    filesList.append(row);
+  }
+}
+
+filesList.addEventListener("click", async (event) => {
+  const button = event.target.closest('button[data-action="delete-file"]');
+  if (!button) return;
+  const row = button.closest("[data-file-id]");
+  const file = state.files.find((item) => item.id === row?.dataset.fileId);
+  if (!file) return;
+  if (!window.confirm(`Delete “${file.name}”?`)) return;
+
+  button.disabled = true;
+  try {
+    await api(`/api/files/${file.id}`, { method: "DELETE" });
+    state.files = state.files.filter((item) => item.id !== file.id);
+    renderFiles();
+    toast("File deleted.");
+  } catch (error) {
+    button.disabled = false;
+    toast(error.message, "error");
+  }
+});
+
+function showProgress(name, fraction, index, total) {
+  uploadProgress.classList.remove("hidden");
+  $("#upload-label").textContent = `Uploading ${index}/${total} · ${name}`;
+  const percent = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+  $("#upload-percent").textContent = `${percent}%`;
+  $("#upload-bar").style.width = `${percent}%`;
+}
+
+function hideProgress() {
+  $("#upload-bar").style.width = "0%";
+  uploadProgress.classList.add("hidden");
+}
+
+function uploadOne(file, index, total) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/files");
+    if (state.csrf) xhr.setRequestHeader("x-sethu-csrf", state.csrf);
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        showProgress(file.name, event.loaded / event.total, index, total);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        toast(`${file.name} uploaded.`, "success");
+      } else {
+        let message = `upload failed (${xhr.status})`;
+        try {
+          message = JSON.parse(xhr.responseText).error.message || message;
+        } catch {
+          /* non-JSON error */
+        }
+        toast(`${file.name}: ${message}`, "error");
+      }
+      resolve();
+    });
+
+    xhr.addEventListener("error", () => {
+      toast(`${file.name}: upload failed. Check the connection.`, "error");
+      resolve();
+    });
+
+    const form = new FormData();
+    form.append("file", file, file.name);
+    showProgress(file.name, 0, index, total);
+    xhr.send(form);
+  });
+}
+
+async function uploadFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length || uploading) return;
+  uploading = true;
+  try {
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      if (state.maxFileBytes && file.size > state.maxFileBytes) {
+        toast(`${file.name} is larger than the ${formatBytes(state.maxFileBytes)} limit.`, "error");
+        continue;
+      }
+      await uploadOne(file, index + 1, files.length);
+    }
+  } finally {
+    uploading = false;
+    hideProgress();
+    await loadFiles();
+  }
+}
+
+dropzone.addEventListener("click", (event) => {
+  if (event.target.closest("button")) return;
+  fileInput.click();
+});
+
+$("#pick-files").addEventListener("click", (event) => {
+  event.stopPropagation();
+  fileInput.click();
+});
+
+dropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    fileInput.click();
+  }
+});
+
+fileInput.addEventListener("change", () => {
+  const files = Array.from(fileInput.files || []);
+  fileInput.value = "";
+  uploadFiles(files);
+});
+
+["dragenter", "dragover"].forEach((name) => {
+  dropzone.addEventListener(name, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dropzone.classList.add("is-dragging");
+  });
+});
+
+["dragleave", "dragend"].forEach((name) => {
+  dropzone.addEventListener(name, (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("is-dragging");
+  });
+});
+
+dropzone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  dropzone.classList.remove("is-dragging");
+  uploadFiles(event.dataTransfer.files);
+});
+
+window.addEventListener("dragover", (event) => event.preventDefault());
+window.addEventListener("drop", (event) => event.preventDefault());
 
 // ----- boot --------------------------------------------------------------
 

@@ -24,11 +24,12 @@ authentication layer.
 ### In scope
 
 - Authentication bypass, session fixation, CSRF, XSS or SQL/JSON injection.
+- Path traversal or content-type confusion through file uploads/downloads.
 - Cross-origin access to the API or WebSockets.
-- Leakage of session tokens, password hashes or device addresses through logs,
-  errors or the data file.
+- Leakage of session tokens, password hashes, files or device addresses through
+  logs, errors or the data file.
 - Resource exhaustion from unauthenticated requests (within reason).
-- Denial of service that survives rate limits and body-size caps.
+- Denial of service that survives rate limits, body-size caps and upload limits.
 
 ### Out of scope / accepted risk
 
@@ -45,8 +46,17 @@ authentication layer.
   adb server trusted; never expose port 5037 or wireless-debugging ports.
 - **Plaintext HTTP deployments** without a TLS proxy. Sethu logs a warning, but
   it cannot protect credentials on the wire by itself.
+- **Open access is a deliberate downgrade.** `SETHU_AUTH=open` removes
+  authentication and CSRF; everyone who reaches the port controls the first
+  account's devices and files. Only run it on a trusted LAN/VPN or behind an
+  authenticating proxy.
+- **File sharing is not end-to-end encrypted.** Uploads are stored in plaintext
+  under `data/files/` (honouring the data directory permissions) and are visible
+  to everyone with access to the workspace. Sethu does not scan for malware.
+  Downloads are forced attachments with `nosniff` to prevent execution on the
+  Sethu origin.
 - Accounts are not isolated from each other's *devices* beyond ownership checks;
-  there are no admin roles in v0.1.
+  there are no admin roles in v0.3.
 - Traffic analysis and screen contents are visible to the server operator.
 
 ## Hardening checklist
@@ -57,6 +67,10 @@ authentication layer.
 - [ ] Set `SETHU_TRUST_PROXY=true` only when a local reverse proxy overwrites
       `X-Forwarded-*`.
 - [ ] Create the owner account, then `SETHU_ALLOW_REGISTRATION=false`.
+- [ ] Prefer `SETHU_AUTH=required`; if using `SETHU_AUTH=open`, put the server on
+      a VPN or trusted LAN and never port-forward it.
+- [ ] Set a sensible `SETHU_MAX_FILE_BYTES`, monitor disk space, and delete files
+      you no longer need.
 - [ ] Expose Sethu over a VPN or an IP allow-list, not the open internet.
 - [ ] Never publish ports 5900, 8100, 5555 or the adb server (5037).
 - [ ] Use a long, unique VNC password.
@@ -95,8 +109,10 @@ without `Origin` still need a valid session cookie and CSRF token.
 for adb). Credentials in URLs, queries and fragments are rejected. WebSocket
 text commands are parsed with serde and coordinate-checked. Android text input
 is restricted to a safe character allowlist before it reaches
-`adb shell input text`. API bodies are capped at 64 KiB, WebSocket frames at
-16 MiB.
+`adb shell input text`. Uploaded filenames are reduced to a sanitised basename,
+stored under a server-generated UUID, and served as attachments. API bodies are
+capped at 64 KiB; uploads stream with a configurable cap; WebSocket frames are
+capped at 16 MiB.
 
 **Headers.** `Content-Security-Policy` denies inline scripts (noVNC is loaded as
 a module), frames, objects and form posts to other origins. `X-Frame-Options:

@@ -23,6 +23,8 @@ pub enum AppError {
     Conflict(String),
     #[error("too many requests, slow down and try again later")]
     TooManyRequests,
+    #[error("{0}")]
+    TooLarge(String),
     #[error("upstream device error: {0}")]
     BadGateway(String),
     #[error("internal server error")]
@@ -44,6 +46,7 @@ impl AppError {
             AppError::NotFound(_) => "not_found",
             AppError::Conflict(_) => "conflict",
             AppError::TooManyRequests => "too_many_requests",
+            AppError::TooLarge(_) => "payload_too_large",
             AppError::BadGateway(_) => "bad_gateway",
             AppError::Internal => "internal",
         }
@@ -58,6 +61,7 @@ impl AppError {
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
+            AppError::TooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::BadGateway(_) => StatusCode::BAD_GATEWAY,
             AppError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         }

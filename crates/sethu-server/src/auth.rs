@@ -129,12 +129,27 @@ impl axum::extract::FromRequestParts<AppState> for AuthUser {
         parts: &mut axum::http::request::Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let (session, user) =
-            session_from_headers(state, &parts.headers).ok_or(AppError::Unauthorized)?;
-        Ok(AuthUser {
-            user,
-            csrf: session.csrf,
-        })
+        if let Some((session, user)) = session_from_headers(state, &parts.headers) {
+            return Ok(AuthUser {
+                user,
+                csrf: session.csrf,
+            });
+        }
+
+        // Open-access mode: every visitor acts as the local workspace owner.
+        if state.cfg.open_access {
+            let id = state.local_user.ok_or(AppError::Internal)?;
+            let user = state
+                .store
+                .user_by_id(id)
+                .ok_or_else(|| AppError::internal("open-access workspace is missing"))?;
+            return Ok(AuthUser {
+                user,
+                csrf: String::new(),
+            });
+        }
+
+        Err(AppError::Unauthorized)
     }
 }
 

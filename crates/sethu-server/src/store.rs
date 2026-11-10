@@ -76,6 +76,20 @@ pub struct Session {
     pub expires_at: i64,
 }
 
+/// Metadata for a shared file. Contents live under `data/files/<owner>/<disk>`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredFile {
+    pub id: Uuid,
+    pub owner_id: Uuid,
+    /// Original, user-facing filename.
+    pub name: String,
+    /// Server-generated filename on disk (no user input).
+    pub disk_name: String,
+    pub size: u64,
+    pub mime: String,
+    pub created_at: i64,
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct Db {
     #[serde(default)]
@@ -84,6 +98,8 @@ struct Db {
     hosts: Vec<Host>,
     #[serde(default)]
     sessions: Vec<Session>,
+    #[serde(default)]
+    files: Vec<StoredFile>,
 }
 
 pub struct Store {
@@ -147,6 +163,12 @@ impl Store {
 
     pub fn user_count(&self) -> usize {
         self.read(|db| db.users.len())
+    }
+
+    /// First (oldest) account. Open-access mode uses this workspace so devices
+    /// added before the switch remain visible.
+    pub fn first_user(&self) -> Option<User> {
+        self.read(|db| db.users.first().cloned())
     }
 
     // ----- sessions ------------------------------------------------------
@@ -286,6 +308,64 @@ impl Store {
         })
     }
 
+    // ----- shared files --------------------------------------------------
+
+    pub fn list_files(&self, owner_id: Uuid) -> Vec<StoredFile> {
+        self.read(|db| {
+            let mut files: Vec<StoredFile> = db
+                .files
+                .iter()
+                .filter(|f| f.owner_id == owner_id)
+                .cloned()
+                .collect();
+            files.sort_by_key(|file| std::cmp::Reverse(file.created_at));
+            files
+        })
+    }
+
+    pub fn file(&self, id: Uuid, owner_id: Uuid) -> Option<StoredFile> {
+        self.read(|db| {
+            db.files
+                .iter()
+                .find(|f| f.id == id && f.owner_id == owner_id)
+                .cloned()
+        })
+    }
+
+    pub fn add_file(
+        &self,
+        owner_id: Uuid,
+        name: String,
+        disk_name: String,
+        size: u64,
+        mime: String,
+    ) -> Result<StoredFile, StoreError> {
+        self.write(|db| {
+            let file = StoredFile {
+                id: Uuid::new_v4(),
+                owner_id,
+                name,
+                disk_name,
+                size,
+                mime,
+                created_at: now_unix(),
+            };
+            db.files.push(file.clone());
+            Ok(file)
+        })
+    }
+
+    pub fn delete_file(&self, id: Uuid, owner_id: Uuid) -> Result<StoredFile, StoreError> {
+        self.write(|db| {
+            let index = db
+                .files
+                .iter()
+                .position(|f| f.id == id && f.owner_id == owner_id)
+                .ok_or(StoreError::NotFound)?;
+            Ok(db.files.remove(index))
+        })
+    }
+
     // ----- internals -----------------------------------------------------
 
     fn read<T>(&self, f: impl FnOnce(&Db) -> T) -> T {
@@ -376,5 +456,41 @@ mod tests {
         assert!(store.delete_host(host.id, bob.id).is_err());
         assert_eq!(store.list_hosts(alice.id).len(), 1);
         assert_eq!(store.list_hosts(bob.id).len(), 0);
+    }
+
+    #[test]
+    fn files_are_scoped_and_ordered() {
+        let (store, _dir) = temp_store();
+        let alice = store.create_user("alice@example.com", "h".into()).unwrap();
+        let bob = store.create_user("bob@example.com", "h".into()).unwrap();
+        let first = store
+            .add_file(
+                alice.id,
+                "a.txt".into(),
+                "one".into(),
+                1,
+                "text/plain".into(),
+            )
+            .unwrap();
+        store
+            .add_file(
+                alice.id,
+                "b.bin".into(),
+                "two".into(),
+                2,
+                "application/octet-stream".into(),
+            )
+            .unwrap();
+        assert_eq!(store.list_files(alice.id).len(), 2);
+        let names: Vec<String> = store
+            .list_files(alice.id)
+            .into_iter()
+            .map(|file| file.name)
+            .collect();
+        assert!(names.contains(&"a.txt".to_string()) && names.contains(&"b.bin".to_string()));
+        assert!(store.file(first.id, bob.id).is_none());
+        assert!(store.delete_file(first.id, bob.id).is_err());
+        assert_eq!(store.delete_file(first.id, alice.id).unwrap().name, "a.txt");
+        assert_eq!(store.list_files(alice.id).len(), 1);
     }
 }

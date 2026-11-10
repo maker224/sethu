@@ -721,6 +721,247 @@ select:focus-visible {
   font-size: 0.86rem;
 }
 
+/* ---------- workspace tabs & files ---------- */
+
+.workspace-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 24px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(3, 7, 15, 0.5);
+}
+
+.workspace-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.workspace-tab .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.workspace-tab:hover {
+  color: var(--text);
+}
+
+.workspace-tab.is-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.workspace-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.files-panel {
+  padding-bottom: 40px;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 38px 24px;
+  border: 2px dashed var(--border-strong);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.015);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.dropzone:hover,
+.dropzone.is-dragging {
+  border-color: rgba(94, 234, 212, 0.6);
+  background: rgba(94, 234, 212, 0.055);
+}
+
+.dropzone.is-dragging {
+  transform: scale(1.005);
+}
+
+.dropzone h3 {
+  font-size: 1.08rem;
+  letter-spacing: -0.01em;
+}
+
+.dropzone p {
+  max-width: 52ch;
+  color: var(--faint);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.dropzone .btn {
+  margin-top: 6px;
+}
+
+.dropzone-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  color: var(--accent);
+  background: rgba(94, 234, 212, 0.09);
+  border: 1px solid rgba(94, 234, 212, 0.22);
+}
+
+.dropzone-icon .icon {
+  width: 26px;
+  height: 26px;
+}
+
+.upload-progress {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.upload-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.upload-row #upload-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #7dd3fc, #a5b4fc);
+  transition: width 160ms ease;
+}
+
+.files-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 32px 0 12px;
+}
+
+.files-head h3 {
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+}
+
+.files-total {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+}
+
+.files-list {
+  display: grid;
+  gap: 9px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.file-row:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+}
+
+.file-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.file-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.file-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta {
+  margin-top: 2px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.files-empty {
+  margin-top: 16px;
+  padding: 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 0.86rem;
+}
+
+.files-note {
+  margin-top: 24px;
+  max-width: 80ch;
+  color: #5b6980;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
 .host-card {
   display: flex;
   flex-direction: column;
@@ -1561,6 +1802,18 @@ select:focus-visible {
 
   .filter-tab {
     flex: none;
+  }
+
+  .dropzone {
+    padding: 28px 16px;
+  }
+
+  .file-row {
+    padding: 10px 11px;
+  }
+
+  .file-meta {
+    font-size: 0.65rem;
   }
 }
 

@@ -27,6 +27,7 @@ Windows VNC server  :5900    ──► iPhone / iPad        ──► Android ph
 | **Windows PC** | Full desktop and input through any VNC server (TightVNC, UltraVNC, RealVNC) | Same RFB bridge as macOS |
 | **iPhone / iPad** | Live screen, tap, swipe, text input, home/lock buttons, screenshot download, 4–15 fps | PNG frames and WDA commands over WebSocket |
 | **Android phone / tablet** | Live screen, tap, swipe, text input, home/back/recents/power, screenshot download, 3–12 fps | PNG frames from `adb screencap` and `adb shell input` |
+| **Files** | Upload and download any format between your devices from the **Files** tab | Multipart uploads to the Sethu server, streamed downloads |
 
 Everything runs on one small binary. Accounts, device list and sessions live in
 a single JSON file on your server. Sethu never stores device credentials — they
@@ -54,6 +55,14 @@ cargo run --release
 ```
 
 Open <http://localhost:8080> and create the first account. Then add a device.
+
+To remove the sign-in screen entirely, run with `SETHU_AUTH=open`. Every visitor
+then shares the first account's workspace (devices and files). Only do this on a
+trusted LAN, behind a VPN, or with another authentication proxy in front:
+
+```bash
+SETHU_AUTH=open cargo run --release
+```
 
 During development, serve the frontend from disk so edits are instant:
 
@@ -156,6 +165,7 @@ Notes:
 ---
 
 ## Connect an iPhone or iPad
+
 Sethu talks to [WebDriverAgent][wda] (the XCTest runner used by Appium). No
 Appium server is required — Sethu calls WDA's session-less endpoints directly.
 
@@ -197,6 +207,43 @@ pixels are converted to logical points using the scale reported by
 
 ---
 
+## Share files between devices
+
+The **Files** tab is a shared drop box on the Sethu server. It accepts any
+format, multiple files at once, and works from every browser — so all of these
+flows are the same three steps:
+
+1. Run Sethu on the MacBook (or on a server both devices can reach).
+2. On Android or Windows, open `http://<sethu-host>:8080` → **Files** → upload.
+3. On the MacBook, open the same page → **Files** → download.
+
+| Scenario | Works because |
+| --- | --- |
+| **Android → MacBook** | Android Chrome uploads; the MacBook downloads from the same list |
+| **Windows → MacBook** | Same flow from Edge/Chrome on Windows |
+| **Android + Windows → MacBook** | Both upload into the same workspace list |
+| **iPhone/iPad → MacBook** | Safari's file picker uploads Photos, Files or camera captures |
+| **MacBook → Android/Windows** | Upload on the MacBook, download on the other device |
+
+![Files tab with uploads](docs/files.png)
+
+Behaviour:
+
+- Contents stream to `data/files/<workspace>/<uuid>`; metadata lives in
+  `sethu.json`. Empty files are allowed.
+- The default maximum is 2 GiB per file (`SETHU_MAX_FILE_BYTES`).
+- Downloads are forced `Content-Disposition: attachment` with `nosniff`, so an
+  uploaded HTML or SVG cannot execute on the Sethu origin.
+- Files are visible to everyone with access to the workspace and are **not**
+  end-to-end encrypted. The server stores them in plaintext on disk; anyone who
+  controls the server or its backups can read them. Delete files from the list
+  when you no longer need them.
+- If Sethu runs on a remote Linux VPS, files land on that VPS, not directly in
+  the MacBook filesystem. Run Sethu **on the MacBook** for the exact
+  “phone → MacBook folder” flow.
+
+---
+
 ## Configuration
 
 All settings are environment variables (or an `.env` file for Docker Compose).
@@ -208,6 +255,8 @@ See `.env.example`.
 | `SETHU_DATA_DIR` | `./data` | Directory for `sethu.json` (mode 0600) |
 | `SETHU_PUBLIC_URL` | – | Canonical URL, e.g. `https://remote.example.com`; required behind a proxy |
 | `SETHU_COOKIE_SECURE` | auto (`true` with an `https://` public URL) | Marks the session cookie `Secure` |
+| `SETHU_AUTH` | `required` | `required` or `open` (no sign-in; trusted LAN only) |
+| `SETHU_MAX_FILE_BYTES` | `2147483648` | Maximum size of one uploaded file |
 | `SETHU_ALLOW_REGISTRATION` | `true` | Set `false` after creating your account |
 | `SETHU_SESSION_TTL_HOURS` | `168` | Login lifetime |
 | `SETHU_IOS_FPS` | `10` | Default iPhone/iPad frame rate (1–15) |
@@ -279,6 +328,10 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `PATCH` | `/api/hosts/{id}` | Rename or edit notes |
 | `DELETE` | `/api/hosts/{id}` | Remove device |
 | `POST` | `/api/hosts/{id}/test` | TCP check (Mac/Windows), WDA `/status` (iPhone) or `adb get-state` (Android) |
+| `GET` | `/api/files` | List shared files in the workspace |
+| `POST` | `/api/files` | Multipart upload (`file` field, any format) |
+| `GET` | `/api/files/{id}/download` | Streamed attachment download |
+| `DELETE` | `/api/files/{id}` | Delete a file and its contents |
 | `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |
 | `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands (iPhone/iPad) |
 | `GET` (WS) | `/ws/android/{id}` | PNG frames + JSON commands (Android) |
@@ -301,6 +354,12 @@ WebSocket details and the iPhone/Android message schemas are documented in
   from the browser to the device through the encrypted WebSocket; Sethu never
   parses or stores them. As the TLS endpoint, the server process could in
   principle intercept the stream — run it on hardware you trust.
+- **Open access is a deliberate downgrade.** With `SETHU_AUTH=open` there is no
+  sign-in and everyone who reaches the port shares one workspace. Keep it on a
+  VPN or trusted LAN, or put an authenticating proxy in front.
+- **Uploads** are plain files on disk, served as attachments. Sethu does not
+  scan for malware; treat uploads as untrusted and keep the data directory
+  private (mode `0600`).
 - **Hardened headers**: CSP, `X-Frame-Options: DENY`, `nosniff`, no-referrer,
   restrictive permissions policy.
 - The data file is written atomically with mode `0600`; back it up and protect it.
@@ -327,6 +386,7 @@ crates/sethu-server/
     target.rs      device address validation
     wda.rs         WebDriverAgent client
     adb.rs         Android adb client
+    files.rs       shared file uploads/downloads
     ws/vnc.rs      RFB <-> WebSocket bridge
     ws/ios.rs      iPhone screenshot/command bridge
     ws/android.rs  Android screenshot/command bridge
@@ -373,7 +433,8 @@ Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **No built-in TLS:** use Caddy, nginx or Traefik (examples included).
 - **Single-user devices:** devices belong to the account that added them; no
   sharing between accounts yet.
-- **No file transfer, audio, multi-monitor selection, RDP or recording** in v0.2.
+- **No peer-to-peer or end-to-end encrypted file transfer**, audio, multi-monitor
+  selection, RDP or recording in v0.3. Files live in a shared server workspace.
 
 ### Roadmap
 

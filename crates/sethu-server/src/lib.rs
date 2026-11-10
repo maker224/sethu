@@ -6,6 +6,7 @@ pub mod assets;
 pub mod auth;
 pub mod config;
 pub mod error;
+pub mod files;
 pub mod rate_limit;
 pub mod security;
 pub mod state;
@@ -16,7 +17,7 @@ pub mod wda;
 pub mod web;
 pub mod ws;
 
-use axum::{extract::DefaultBodyLimit, middleware, Router};
+use axum::{middleware, Router};
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
 use crate::state::AppState;
@@ -25,6 +26,7 @@ use crate::state::AppState;
 pub fn app(state: AppState) -> Router {
     Router::new()
         .merge(api::router())
+        .merge(files::router())
         .merge(ws::router())
         .fallback(web::serve)
         .with_state(state.clone())
@@ -34,7 +36,6 @@ pub fn app(state: AppState) -> Router {
             security::hardening_headers,
         ))
         .layer(middleware::from_fn_with_state(state, security::guard))
-        .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
 }

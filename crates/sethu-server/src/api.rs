@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use axum::{
-    extract::{Path, State},
+    extract::{DefaultBodyLimit, Path, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -36,6 +36,8 @@ pub fn router() -> Router<AppState> {
             get(get_host).patch(update_host).delete(delete_host),
         )
         .route("/api/hosts/{id}/test", post(test_host))
+        // JSON bodies stay small; file uploads have their own streaming limit.
+        .layer(DefaultBodyLimit::max(64 * 1024))
 }
 
 // ----- views -------------------------------------------------------------
@@ -66,6 +68,9 @@ struct SessionView {
     cookie_secure: bool,
     /// Whether a locally vendored noVNC copy is available.
     novnc_vendored: bool,
+    /// True when the sign-in screen is bypassed (`SETHU_AUTH=open`).
+    auth_open: bool,
+    max_file_bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -104,6 +109,13 @@ async fn session_info(State(state): State<AppState>, headers: HeaderMap) -> Json
     let found = auth::session_from_headers(&state, &headers);
     let (user, csrf) = match found {
         Some((session, user)) => (Some(UserView::from(&user)), session.csrf),
+        None if state.cfg.open_access => {
+            let user = state
+                .local_user
+                .and_then(|id| state.store.user_by_id(id))
+                .map(|user| UserView::from(&user));
+            (user, String::new())
+        }
         None => (None, String::new()),
     };
     Json(SessionView {
@@ -113,6 +125,8 @@ async fn session_info(State(state): State<AppState>, headers: HeaderMap) -> Json
         version: env!("CARGO_PKG_VERSION"),
         cookie_secure: state.cfg.cookie_secure,
         novnc_vendored: state.cfg.vendor_dir.join("novnc/core/rfb.js").is_file(),
+        auth_open: state.cfg.open_access,
+        max_file_bytes: state.cfg.max_file_bytes,
     })
 }
 
@@ -128,6 +142,11 @@ async fn register(
     State(state): State<AppState>,
     Json(body): Json<Credentials>,
 ) -> Result<Response, AppError> {
+    if state.cfg.open_access {
+        return Err(AppError::Forbidden(
+            "authentication is disabled because this server runs in open-access mode".into(),
+        ));
+    }
     // With zero accounts the server must remain claimable even if registration
     // is disabled, otherwise a fresh deployment would be impossible to set up.
     let first_user = state.store.user_count() == 0;
@@ -160,6 +179,11 @@ async fn login(
     State(state): State<AppState>,
     Json(body): Json<Credentials>,
 ) -> Result<Response, AppError> {
+    if state.cfg.open_access {
+        return Err(AppError::Forbidden(
+            "authentication is disabled because this server runs in open-access mode".into(),
+        ));
+    }
     let email = body.email.trim().to_ascii_lowercase();
     let user = state.store.user_by_email(&email);
 

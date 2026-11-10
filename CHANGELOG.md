@@ -4,6 +4,29 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-11-10
+
+### Added
+
+- **Files workspace**: upload files of any format from any browser (Android,
+  Windows, iPhone, iPad, Mac) and download them on any other device, with
+  drag-and-drop, multiple uploads, progress, size display and deletion.
+- Streaming uploads with a configurable cap (`SETHU_MAX_FILE_BYTES`), safe
+  filename handling and attachment-only downloads.
+- **Open-access mode** (`SETHU_AUTH=open`) that removes the sign-in screen and
+  shares one workspace between everyone who can reach the server.
+- Per-workspace file metadata in `sethu.json` with contents under
+  `data/files/`.
+- Integration tests for multipart upload/download/delete, body-size overrides,
+  size limits, cleanup and open-access mode.
+
+### Changed
+
+- The dashboard has **Devices** and **Files** workspace tabs alongside the
+  platform filters.
+- API JSON body limits now apply per router so large uploads stream without
+  weakening normal JSON endpoints.
+
 ## [0.2.0] — 2026-11-10
 
 ### Added
@@ -71,3 +94,4 @@ Initial public release.
 
 [0.1.0]: https://github.com/your-org/sethu/releases/tag/v0.1.0
 [0.2.0]: https://github.com/your-org/sethu/releases/tag/v0.2.0
+[0.3.0]: https://github.com/your-org/sethu/releases/tag/v0.3.0

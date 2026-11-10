@@ -71,11 +71,13 @@ pub async fn guard(
                 }
             }
             _ => {
-                let provided = req
-                    .headers()
-                    .get(CSRF_HEADER)
-                    .and_then(|value| value.to_str().ok());
-                auth::require_csrf(&state, req.headers(), provided)?;
+                if !state.cfg.open_access {
+                    let provided = req
+                        .headers()
+                        .get(CSRF_HEADER)
+                        .and_then(|value| value.to_str().ok());
+                    auth::require_csrf(&state, req.headers(), provided)?;
+                }
             }
         }
     }

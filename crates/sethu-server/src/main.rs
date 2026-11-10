@@ -52,6 +52,12 @@ async fn main() -> anyhow::Result<()> {
              so proxy deployments accept browser origins"
         );
     }
+    if state.cfg.open_access {
+        tracing::warn!(
+            "SETHU_AUTH=open: authentication is disabled. Everyone who can reach \
+             this port can control devices and read files. Use a trusted LAN or VPN."
+        );
+    }
     if state.store.user_count() == 0 {
         tracing::info!("no accounts yet: open the web UI and create the first one");
     }

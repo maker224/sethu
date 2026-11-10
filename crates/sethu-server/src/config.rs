@@ -45,6 +45,11 @@ pub struct Config {
     pub vnc_connect_timeout: Duration,
     /// Maximum number of concurrent device streams.
     pub max_sessions: usize,
+    /// Skip the sign-in screen and share one workspace between all visitors.
+    /// Only appropriate on a trusted LAN / behind a VPN.
+    pub open_access: bool,
+    /// Maximum size of a single uploaded file, in bytes.
+    pub max_file_bytes: u64,
 }
 
 impl Config {
@@ -86,6 +91,13 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let auth_mode = env("SETHU_AUTH", "required").to_ascii_lowercase();
+        let open_access = match auth_mode.as_str() {
+            "required" | "on" => false,
+            "open" | "none" | "off" | "disabled" => true,
+            other => bail!("SETHU_AUTH must be `required` or `open`, got `{other}`"),
+        };
+
         Ok(Self {
             bind,
             data_dir,
@@ -106,6 +118,8 @@ impl Config {
                 env_u64("SETHU_VNC_CONNECT_TIMEOUT_SECONDS", 10).max(1),
             ),
             max_sessions: env_u64("SETHU_MAX_SESSIONS", 32).clamp(1, 512) as usize,
+            open_access,
+            max_file_bytes: env_u64("SETHU_MAX_FILE_BYTES", 2 * 1024 * 1024 * 1024).max(1),
         })
     }
 
@@ -129,6 +143,8 @@ impl Config {
             wda_timeout: Duration::from_secs(2),
             vnc_connect_timeout: Duration::from_secs(2),
             max_sessions: 32,
+            open_access: false,
+            max_file_bytes: 10 * 1024 * 1024,
         }
     }
 
