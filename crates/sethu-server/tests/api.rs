@@ -303,6 +303,10 @@ async fn full_auth_and_host_lifecycle() {
     )
     .await;
     assert_eq!(bad_login.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        bad_login.body["error"]["message"],
+        "invalid email or password"
+    );
     assert!(bad_login.token.is_none());
 
     // Correct password rotates to a fresh session.

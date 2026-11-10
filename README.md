@@ -27,8 +27,8 @@ macOS Screen Sharing :5900    WebDriverAgent :8100 ──► iPhone / iPad
 | **iPhone / iPad** | Live screen, tap, swipe, text input, home/lock buttons, screenshot download, 4–15 fps | PNG frames and WDA commands over WebSocket |
 
 Everything runs on one small binary. Accounts, device list and sessions live in
-a single JSON file on your server. Device passwords are never stored or sent to
-the Sethu backend.
+a single JSON file on your server. Sethu never stores device credentials — they
+travel from the browser to the device through the encrypted tunnel.
 
 ![Sethu dashboard with two Macs and an iPhone](docs/dashboard.png)
 
@@ -67,7 +67,8 @@ docker compose up -d --build
 ```
 
 Data persists in the `sethu-data` volume. Put a TLS-terminating proxy in front
-before exposing it, and read [Security](SECURITY.md) first.
+before exposing it, and read [Security](SECURITY.md) first. For an offline
+install, mount a vendored noVNC directory and set `SETHU_VENDOR_DIR` to it.
 
 ---
 

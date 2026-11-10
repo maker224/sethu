@@ -172,7 +172,7 @@ async fn login(
 
     let Some(user) = user.filter(|_| password_ok) else {
         tracing::warn!(email = %email, "failed login");
-        return Err(AppError::Unauthorized);
+        return Err(AppError::InvalidCredentials);
     };
 
     let (token, _session) = state.store.create_session(user.id, state.cfg.session_ttl)?;

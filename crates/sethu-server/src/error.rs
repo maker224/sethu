@@ -13,6 +13,8 @@ pub enum AppError {
     BadRequest(String),
     #[error("authentication required")]
     Unauthorized,
+    #[error("invalid email or password")]
+    InvalidCredentials,
     #[error("{0}")]
     Forbidden(String),
     #[error("{0}")]
@@ -37,6 +39,7 @@ impl AppError {
         match self {
             AppError::BadRequest(_) => "bad_request",
             AppError::Unauthorized => "unauthorized",
+            AppError::InvalidCredentials => "unauthorized",
             AppError::Forbidden(_) => "forbidden",
             AppError::NotFound(_) => "not_found",
             AppError::Conflict(_) => "conflict",
@@ -50,6 +53,7 @@ impl AppError {
         match self {
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
+            AppError::InvalidCredentials => StatusCode::UNAUTHORIZED,
             AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
