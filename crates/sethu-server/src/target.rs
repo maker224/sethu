@@ -100,6 +100,28 @@ pub fn normalize_wda(raw: &str) -> Result<String, AppError> {
     Ok(url.as_str().trim_end_matches('/').to_string())
 }
 
+/// Accepts an adb serial: USB (`R58M...`), emulator (`emulator-5554`) or a
+/// network device (`192.168.1.20:5555`).
+pub fn normalize_adb(raw: &str) -> Result<String, AppError> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Err(AppError::BadRequest(
+            "enter the serial shown by `adb devices`".into(),
+        ));
+    }
+    if value.len() > 128
+        || value.chars().any(|c| c.is_whitespace() || c.is_control())
+        || !value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ':'))
+    {
+        return Err(AppError::BadRequest(
+            "invalid adb serial (use letters, digits, dot, dash, underscore or colon)".into(),
+        ));
+    }
+    Ok(value.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +152,18 @@ mod tests {
         assert!(normalize_wda("192.168.1.9:8100").is_err());
         assert!(normalize_wda("ftp://x").is_err());
         assert!(normalize_wda("http://user:pass@x").is_err());
+    }
+
+    #[test]
+    fn adb_serials() {
+        assert_eq!(normalize_adb(" R58M12345 ").unwrap(), "R58M12345");
+        assert_eq!(normalize_adb("emulator-5554").unwrap(), "emulator-5554");
+        assert_eq!(
+            normalize_adb("192.168.1.30:5555").unwrap(),
+            "192.168.1.30:5555"
+        );
+        assert!(normalize_adb("").is_err());
+        assert!(normalize_adb("serial; reboot").is_err());
+        assert!(normalize_adb("two words").is_err());
     }
 }

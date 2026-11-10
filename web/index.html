@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#05070d" />
     <meta
       name="description"
-      content="Sethu is a self-hosted, open-source web gateway for reaching your Mac and iPhone from any browser."
+      content="Sethu is a self-hosted, open-source web gateway for reaching your Mac, Windows PC, iPhone, iPad and Android devices from any browser."
     />
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -23,6 +23,16 @@
       <symbol id="i-iphone" viewBox="0 0 24 24">
         <rect x="7" y="2" width="10" height="20" rx="2.5" />
         <path d="M10.5 18.5h3" />
+      </symbol>
+      <symbol id="i-windows" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="8" height="8" rx="1" />
+        <rect x="13" y="3" width="8" height="8" rx="1" />
+        <rect x="3" y="13" width="8" height="8" rx="1" />
+        <rect x="13" y="13" width="8" height="8" rx="1" />
+      </symbol>
+      <symbol id="i-android" viewBox="0 0 24 24">
+        <path d="M5 10a7 7 0 0 1 14 0v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z" />
+        <path d="M8.5 10h.01M15.5 10h.01M7 4l1.5 2.5M17 4l-1.5 2.5" />
       </symbol>
       <symbol id="i-plus" viewBox="0 0 24 24">
         <path d="M12 5v14M5 12h14" />
@@ -99,24 +109,28 @@
       <section id="auth-view" class="auth-layout hidden" aria-labelledby="auth-heading">
         <div class="hero">
           <p class="eyebrow"><span class="eyebrow-dot"></span> Self-hosted · Open source</p>
-          <h1>Your Mac and iPhone,<br /><span class="gradient-text">on any screen.</span></h1>
+          <h1>Your Mac, PC and phones,<br /><span class="gradient-text">on any screen.</span></h1>
           <p class="lede">
-            Sethu is a small Rust server that puts your Apple devices in a browser tab.
-            Use it from Windows, Android, a Chromebook or an iPad — no client installs,
-            no third-party cloud.
+            Sethu is a small Rust server that puts your Mac, Windows PC, iPhone, iPad and
+            Android devices in a browser tab. Use it from Windows, Android, Linux or an
+            iPad — no client installs, no third-party cloud.
           </p>
           <ul class="feature-list">
             <li>
               <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
-              <div><strong>Mac screen sharing</strong><span>Full keyboard and mouse over VNC through macOS Screen Sharing.</span></div>
+              <div><strong>Mac and Windows desktops</strong><span>Full keyboard and mouse over native macOS Screen Sharing or a VNC server on Windows.</span></div>
             </li>
             <li>
               <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
-              <div><strong>iPhone mirroring</strong><span>Live screenshots plus tap, swipe and text input via WebDriverAgent.</span></div>
+              <div><strong>Phones and tablets</strong><span>Mirror iPhone, iPad and Android screens with tap, swipe and text input.</span></div>
             </li>
             <li>
               <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
               <div><strong>Yours alone</strong><span>Accounts, sessions and device list live on your server. Device passwords are never stored.</span></div>
+            </li>
+            <li>
+              <span class="feature-check"><svg class="icon"><use href="#i-check" /></svg></span>
+              <div><strong>Works in any browser</strong><span>Connect from Windows, Android, Linux, macOS or an iPad. Open several devices in separate tabs.</span></div>
             </li>
           </ul>
         </div>
@@ -158,7 +172,7 @@
           <div>
             <p class="eyebrow"><span class="eyebrow-dot"></span> Connected workspace</p>
             <h2 id="dashboard-heading">Your devices</h2>
-            <p class="section-note">Open a device, or add a Mac or iPhone that is reachable from this server.</p>
+            <p class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
           </div>
           <button id="add-host" class="btn btn-primary" type="button">
             <svg class="icon"><use href="#i-plus" /></svg>
@@ -166,12 +180,21 @@
           </button>
         </div>
 
+        <div id="host-filters" class="filter-tabs hidden" role="tablist" aria-label="Filter devices">
+          <button class="filter-tab is-active" type="button" role="tab" aria-selected="true" data-filter="all">All</button>
+          <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="macos">Mac</button>
+          <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="windows">Windows</button>
+          <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="ios">iPhone / iPad</button>
+          <button class="filter-tab" type="button" role="tab" aria-selected="false" data-filter="android">Android</button>
+        </div>
+
         <div id="hosts-grid" class="hosts-grid" aria-live="polite"></div>
+        <p id="filter-empty" class="filter-empty hidden">No devices in this tab.</p>
 
         <div id="hosts-empty" class="empty-state hidden">
           <div class="empty-icon"><svg class="icon"><use href="#i-mac" /></svg></div>
           <h3>No devices yet</h3>
-          <p>Enable Screen Sharing on your Mac, or start WebDriverAgent for your iPhone, then add it here.</p>
+          <p>Add a Mac or Windows PC for full screen sharing, or an iPhone, iPad or Android device for mirrored touch control.</p>
           <button id="empty-add" class="btn btn-secondary" type="button">
             <svg class="icon"><use href="#i-plus" /></svg>
             Add your first device
@@ -180,7 +203,7 @@
 
         <div class="setup-tips">
           <div class="tip">
-            <h3>MacBook in two minutes</h3>
+            <h3>Mac in two minutes</h3>
             <ol>
               <li>System Settings → General → Sharing → <strong>Screen Sharing</strong> on.</li>
               <li>Allow your macOS user, or set a VNC password under <strong>Computer Settings…</strong>.</li>
@@ -188,13 +211,31 @@
             </ol>
           </div>
           <div class="tip">
-            <h3>iPhone mirroring</h3>
+            <h3>Windows over VNC</h3>
             <ol>
-              <li>Connect the iPhone to a Mac and start <strong>WebDriverAgent</strong>.</li>
+              <li>Install <strong>TightVNC</strong>, UltraVNC or RealVNC on the PC.</li>
+              <li>Set a VNC password and allow port <code>5900</code> through Windows Firewall.</li>
+              <li>Add the PC's hostname or IP, port <code>5900</code>.</li>
+            </ol>
+            <p class="tip-note">Windows Remote Desktop (RDP) is not proxied — use a VNC server.</p>
+          </div>
+          <div class="tip">
+            <h3>iPhone / iPad mirroring</h3>
+            <ol>
+              <li>Connect the device to a Mac and start <strong>WebDriverAgent</strong>.</li>
               <li>Forward port <code>8100</code> (iproxy or go-ios) so Sethu can reach it.</li>
-              <li>Add <code>http://mac-ip:8100</code> as an iPhone device.</li>
+              <li>Add <code>http://mac-ip:8100</code> as an iPhone / iPad device.</li>
             </ol>
             <p class="tip-note">Screenshots only, no audio. DRM video and the lock screen stay hidden by iOS.</p>
+          </div>
+          <div class="tip">
+            <h3>Android over adb</h3>
+            <ol>
+              <li>Enable Developer options → <strong>USB debugging</strong> (or wireless debugging).</li>
+              <li>Run <code>adb devices</code> on the Sethu host and authorize the device.</li>
+              <li>Add the serial, e.g. <code>R58M…</code> or <code>192.168.1.30:5555</code>.</li>
+            </ol>
+            <p class="tip-note">adb grants shell access to the device. Keep the Sethu host and adb trusted.</p>
           </div>
         </div>
       </section>
@@ -237,6 +278,22 @@
                 <svg class="icon"><use href="#i-iphone" /></svg>
                 <strong>iPhone / iPad</strong>
                 <small>WebDriverAgent</small>
+              </span>
+            </label>
+            <label class="kind-option">
+              <input type="radio" name="kind" value="windows" />
+              <span class="kind-card">
+                <svg class="icon"><use href="#i-windows" /></svg>
+                <strong>Windows</strong>
+                <small>VNC server</small>
+              </span>
+            </label>
+            <label class="kind-option">
+              <input type="radio" name="kind" value="android" />
+              <span class="kind-card">
+                <svg class="icon"><use href="#i-android" /></svg>
+                <strong>Android</strong>
+                <small>ADB</small>
               </span>
             </label>
           </fieldset>

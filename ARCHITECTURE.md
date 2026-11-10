@@ -9,8 +9,10 @@ two WebSocket bridges. There is no database, message broker or worker process.
 ┌──────────────────────────────────────────────────────────────────────┐
 │ Browser (vanilla ES modules, no build step)                          │
 │  index.html + app.js      viewer.html + viewer.js                    │
-│    auth, device CRUD        ├─ viewer-vnc.js  (noVNC / RFB)          │
-│                             └─ viewer-ios.js  (canvas + gestures)    │
+│    auth, device tabs        ├─ viewer-vnc.js      (noVNC / RFB)      │
+│                             ├─ viewer-stream.js   (canvas + gestures)│
+│                             ├─ viewer-ios.js      (WDA commands)     │
+│                             └─ viewer-android.js  (adb commands)     │
 └───────────────┬──────────────────────────────────┬───────────────────┘
                 │ fetch (JSON, CSRF header)        │ WebSocket
                 ▼                                  ▼
@@ -20,13 +22,15 @@ two WebSocket bridges. There is no database, message broker or worker process.
 │  security::guard ── Origin/Host check, CSRF, auth rate limits        │
 │  api            ── session, auth, hosts, health                      │
 │  ws/vnc         ── bidirectional byte pump (RFB is opaque)            │
-│  ws/ios         ── frame producer + command dispatcher               │
+│  ws/ios         ── WDA frame producer + command dispatcher           │
+│  ws/android     ── adb frame producer + command dispatcher           │
 │  web/assets     ── embedded frontend (include_bytes!)                │
 │  store          ── RwLock<Db> + atomic JSON writes                   │
-└───────────────┬──────────────────────────────────┬───────────────────┘
-                │ TCP :5900                        │ HTTP :8100
-                ▼                                  ▼
-        macOS Screen Sharing                WebDriverAgent → iPhone
+└───────────────┬──────────────────┬──────────────────┬────────────────┘
+                │ TCP :5900        │ HTTP :8100       │ adb (USB/TCP)
+                ▼                  ▼                  ▼
+     macOS Screen Sharing    WebDriverAgent       Android device
+     Windows VNC server      iPhone / iPad        phone / tablet
 ```
 
 ## Request lifecycle
@@ -58,7 +62,7 @@ two WebSocket bridges. There is no database, message broker or worker process.
   ],
   "hosts": [
     {"id": "uuid", "owner_id": "uuid", "name": "Studio Mac",
-     "kind": "macos",              // "macos" | "ios"
+     "kind": "macos",              // "macos" | "windows" | "ios" | "android"
      "target": "studio-mac.local:5900",
      "notes": "living room", "created_at": 1730000001}
   ],
@@ -81,7 +85,8 @@ Sessions are pruned lazily on startup and whenever a new session is created.
 
 The WebSocket carries raw RFB. The server:
 
-1. Verifies the caller owns the host and that `kind == macos`.
+1. Verifies the caller owns the host and that it is a VNC-backed kind
+   (`macos` or `windows`).
 2. Opens `TcpStream` **before** upgrading so unreachable devices produce an
    HTTP 502 instead of a dead socket.
 3. Splits both sides and pumps bytes in both directions with a 64 KiB buffer.
@@ -151,20 +156,59 @@ that coordinates are finite, non-negative and inside the last known frame.
 These are session-less routes available in stock WebDriverAgent; no Appium
 server and no WDA session creation are needed.
 
+## Android bridge (`/ws/android/{id}`)
+
+Android uses the platform `adb` executable through `adb.rs`:
+
+1. Verify ownership and `kind == android`.
+2. Run `adb -s <serial> exec-out screencap -p` before upgrading. Failures return
+   HTTP 502 with the adb error (device offline, unauthorized, missing binary).
+3. Send `ready` with the PNG dimensions and `scale: 1` (adb input uses pixels),
+   then stream PNG frames from a bounded producer task.
+4. Translate commands into `adb shell input` calls:
+   - `tap` → `input tap x y`
+   - `swipe` → `input swipe x1 y1 x2 y2 <ms>`
+   - `keys` → `input text <encoded>`
+   - `button` → `input keyevent <code>` (home/back/recents/power/wake/volume)
+5. `SETHU_ANDROID_FPS` controls the polling rate (default 5). Failures back off
+   so a disconnected phone is not hammered.
+
+`adb shell input text` passes through the device shell, so Sethu only accepts a
+safe character set (letters, digits, spaces, common punctuation) and encodes
+spaces as `%s`. Anything else is rejected rather than escaped.
+
+### Server → client
+
+Same control frames as the iPhone bridge: `ready`, `size`, `error`, plus binary
+PNG frames.
+
+### Client → server
+
+```jsonc
+{"type":"tap","x":540,"y":1200}                     // pixels
+{"type":"swipe","x1":100,"y1":1600,"x2":100,"y2":400,"duration":0.3}
+{"type":"keys","text":"hello world"}
+{"type":"button","name":"home"}                     // home | back | recents | power | wake
+{"type":"set_fps","value":5}
+{"type":"ping"}
+```
+
 ## Frontend
 
 Plain ES modules and one stylesheet. No bundler, no framework, no build step.
 
-- `app.js` handles boot, login/register, device CRUD and toasts. It never uses
-  `innerHTML` with user data; DOM nodes are constructed and filled with
-  `textContent`.
+- `app.js` handles boot, login/register, device CRUD, platform filter tabs and
+  toasts. It never uses `innerHTML` with user data; DOM nodes are constructed and
+  filled with `textContent`.
 - `viewer.js` is the shell: loads the host, picks a viewer module, renders its
   action buttons, handles fullscreen/disconnect/reconnect.
 - `viewer-vnc.js` dynamically imports noVNC from `/vendor/novnc/core/rfb.js` if
   vendored, otherwise from jsDelivr. The server's CSP allows both.
-- `viewer-ios.js` decodes frames with `createImageBitmap` in a single drain loop
-  (so frames cannot be painted out of order) and maps pointer gestures to WDA
-  commands.
+- `viewer-stream.js` is the shared screenshot engine for iPhone and Android:
+  frame drain loop (no out-of-order paints), gesture mapping, fps stats and
+  screenshot download.
+- `viewer-ios.js` / `viewer-android.js` supply the device-specific toolbars and
+  WebSocket paths.
 
 The embedded assets are compiled with `include_bytes!`, which keeps deployment
 to one file. `SETHU_WEB_DIR` overrides them for development.
@@ -172,11 +216,14 @@ to one file. `SETHU_WEB_DIR` overrides them for development.
 ## Testing
 
 - Unit tests for password/email rules, target normalisation, session hashing,
-  rate limiting, PNG parsing, WDA URL joining and iPhone command decoding.
+  rate limiting, PNG parsing, WDA URL joining, adb text encoding and iPhone /
+  Android command decoding.
 - Integration tests drive the real axum router with `tower::ServiceExt`:
   registration, duplicate accounts, login timing paths, CSRF rejection, origin
   rejection, host CRUD and logout invalidation.
-- No test needs a Mac, an iPhone or network access.
+- WebSocket tests use a fake RFB server and a fake `adb` executable to verify
+  byte relay, frame streaming, coordinate conversion and input injection.
+- No test needs a Mac, a phone or network access.
 
 ## Design choices and trade-offs
 
@@ -184,7 +231,7 @@ to one file. `SETHU_WEB_DIR` overrides them for development.
 | --- | --- | --- |
 | JSON store instead of SQLite | zero native deps, easy backups, auditable | entire file rewritten per change |
 | Raw RFB passthrough | full encoding support, no secrets server-side | no server-side recording/transcoding |
-| Screenshot polling for iOS | works with stock WDA, no jailbreak | low fps, higher bandwidth |
+| Screenshot polling for iOS/Android | works with stock WDA and adb, no jailbreak/root | low fps, higher bandwidth |
 | Vanilla frontend | no toolchain, easy audits and forks | fewer UI conveniences |
 | In-memory rate limiting | simple and dependency-free | resets on restart, per-process only |
 | Same-origin checks + CSRF | defence in depth, blocks drive-by WebSocket use | needs correct `SETHU_PUBLIC_URL` behind proxies |

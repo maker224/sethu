@@ -29,7 +29,7 @@ pub async fn upgrade(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
-    let host = host_for(&state, &user, id, HostKind::Macos).await?;
+    let host = host_for(&state, &user, id, &[HostKind::Macos, HostKind::Windows]).await?;
     let permit = state
         .ws_slots
         .clone()

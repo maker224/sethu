@@ -4,6 +4,36 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-11-10
+
+### Added
+
+- **Windows PCs** as first-class targets through any standard VNC server
+  (TightVNC, UltraVNC, RealVNC), reusing the RFB bridge.
+- **Android phones and tablets** through `adb`: PNG screenshot streaming at
+  3–12 fps, tap and swipe gestures, text input, home/back/recents/power buttons
+  and screenshot download.
+- **Platform tabs** on the dashboard (All / Mac / Windows / iPhone-iPad /
+  Android) with a four-way device picker and per-platform setup cards.
+- Shared `viewer-stream.js` engine for iPhone and Android frame viewers,
+  including pixel-to-point scaling and a single ordered frame drain loop.
+- Configuration for Android: `SETHU_ANDROID_FPS`, `SETHU_ADB_PATH`,
+  `SETHU_ADB_TIMEOUT_SECONDS`.
+- Fake-`adb` integration test covering screenshot streaming, input injection and
+  the reachability endpoint.
+
+### Changed
+
+- Device names, icons, cards and documentation now cover desktops and phones
+  generically rather than Apple-only.
+- Windows VNC targets share the macOS viewer and credential dialog.
+
+### Known limitations
+
+- Windows requires a third-party VNC server; RDP is not proxied.
+- Android uses screenshot polling: no audio, DRM video or high frame rates.
+- No built-in TLS; deploy behind Caddy/nginx/Traefik.
+
 ## [0.1.0] — 2026-11-10
 
 Initial public release.
@@ -40,3 +70,4 @@ Initial public release.
 - No device sharing between accounts, file transfer or recording yet.
 
 [0.1.0]: https://github.com/your-org/sethu/releases/tag/v0.1.0
+[0.2.0]: https://github.com/your-org/sethu/releases/tag/v0.2.0

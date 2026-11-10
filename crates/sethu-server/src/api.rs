@@ -238,8 +238,9 @@ async fn create_host(
 ) -> Result<Response, AppError> {
     let name = clean_name(&body.name)?;
     let target = match body.kind {
-        HostKind::Macos => target::normalize_vnc(&body.target)?,
+        HostKind::Macos | HostKind::Windows => target::normalize_vnc(&body.target)?,
         HostKind::Ios => target::normalize_wda(&body.target)?,
+        HostKind::Android => target::normalize_adb(&body.target)?,
     };
     let notes = clean_notes(body.notes);
 
@@ -303,7 +304,7 @@ async fn test_host(
         .ok_or_else(|| AppError::NotFound("host not found".into()))?;
 
     match host.kind {
-        HostKind::Macos => {
+        HostKind::Macos | HostKind::Windows => {
             let started = Instant::now();
             let attempt = tokio::time::timeout(
                 state.cfg.vnc_connect_timeout,
@@ -315,7 +316,11 @@ async fn test_host(
                 Ok(Ok(_stream)) => TestResult {
                     ok: true,
                     latency_ms,
-                    message: "TCP connection succeeded. The viewer will ask for your macOS account or the VNC password configured in Screen Sharing.".into(),
+                    message: if host.kind == HostKind::Windows {
+                        "TCP connection succeeded. The viewer will ask for the password configured in your Windows VNC server.".into()
+                    } else {
+                        "TCP connection succeeded. The viewer will ask for your macOS account or the VNC password configured in Screen Sharing.".into()
+                    },
                     ready: None,
                 },
                 Ok(Err(err)) => TestResult {
@@ -349,6 +354,37 @@ async fn test_host(
                     ready: status
                         .pointer("/value/ready")
                         .and_then(|value| value.as_bool()),
+                },
+                Err(err) => TestResult {
+                    ok: false,
+                    latency_ms: started.elapsed().as_millis(),
+                    message: err.to_string(),
+                    ready: None,
+                },
+            };
+            Ok(Json(result))
+        }
+        HostKind::Android => {
+            let started = Instant::now();
+            let adb = crate::adb::AdbClient::new(
+                &state.cfg.adb_path,
+                &host.target,
+                state.cfg.adb_timeout,
+            );
+            let result = match adb.state().await {
+                Ok(state_name) if state_name == "device" => TestResult {
+                    ok: true,
+                    latency_ms: started.elapsed().as_millis(),
+                    message: "adb reports the device is online and authorized.".into(),
+                    ready: Some(true),
+                },
+                Ok(state_name) => TestResult {
+                    ok: false,
+                    latency_ms: started.elapsed().as_millis(),
+                    message: format!(
+                        "adb reports `{state_name}`. Unlock the device, accept the USB debugging prompt, then check `adb devices`."
+                    ),
+                    ready: Some(false),
                 },
                 Err(err) => TestResult {
                     ok: false,

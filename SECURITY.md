@@ -17,7 +17,9 @@ a disclosure date with you.
 ## Threat model
 
 Sethu is a remote-access gateway. It is designed for **trusted operators on
-trusted networks**, with TLS and strong credentials in front.
+trusted networks**, with TLS and strong credentials in front. Both device
+side-channels (WDA and adb) are powerful and unauthenticated; Sethu is the only
+authentication layer.
 
 ### In scope
 
@@ -34,10 +36,13 @@ trusted networks**, with TLS and strong credentials in front.
 - **VNC's authentication is weak by design.** The legacy RFB password is capped
   at 8 characters and uses an old challenge-response exchange. macOS account
   auth (ARD) is stronger, but the Sethu process is still the TLS endpoint and
-  could impersonate the Mac. Use a VPN, a strong account password and firewall
-  rules.
+  could impersonate the host. Windows VNC servers typically only support the
+  legacy password. Use a VPN, a strong password and firewall rules.
 - **WebDriverAgent has no authentication.** Port 8100 grants full device control.
   Keep it on loopback, a private LAN or a VPN.
+- **adb grants shell access to the Android device.** Anyone with access to the
+  adb server can run commands as the `shell` user. Keep the Sethu host and the
+  adb server trusted; never expose port 5037 or wireless-debugging ports.
 - **Plaintext HTTP deployments** without a TLS proxy. Sethu logs a warning, but
   it cannot protect credentials on the wire by itself.
 - Accounts are not isolated from each other's *devices* beyond ownership checks;
@@ -53,7 +58,7 @@ trusted networks**, with TLS and strong credentials in front.
       `X-Forwarded-*`.
 - [ ] Create the owner account, then `SETHU_ALLOW_REGISTRATION=false`.
 - [ ] Expose Sethu over a VPN or an IP allow-list, not the open internet.
-- [ ] Never publish port 5900 or 8100.
+- [ ] Never publish ports 5900, 8100, 5555 or the adb server (5037).
 - [ ] Use a long, unique VNC password.
 - [ ] Keep the data directory on an encrypted volume, mode `0700`, file `0600`.
 - [ ] Back up `sethu.json` securely; it contains password hashes and session
@@ -61,6 +66,8 @@ trusted networks**, with TLS and strong credentials in front.
 - [ ] Run as an unprivileged user (the Docker image and systemd unit do).
 - [ ] Watch logs for repeated `login rate limit hit` or `rejected cross-origin`
       messages.
+- [ ] Install adb from a trusted platform-tools package and keep wireless
+      debugging off when not in use.
 
 ## Security design notes
 
@@ -84,10 +91,12 @@ fetches. The guard rejects any `Origin` whose host does not match the request
 without `Origin` still need a valid session cookie and CSRF token.
 
 **Input handling.** Device targets are parsed and canonicalised
-(`host:port` for VNC, `http(s)://host[:port][/prefix]` for WDA). Credentials in
-WDA URLs, queries and fragments are rejected. WebSocket text commands are parsed
-with serde and coordinate-checked. API bodies are capped at 64 KiB, WebSocket
-frames at 16 MiB.
+(`host:port` for VNC, `http(s)://host[:port][/prefix]` for WDA, a strict serial
+for adb). Credentials in URLs, queries and fragments are rejected. WebSocket
+text commands are parsed with serde and coordinate-checked. Android text input
+is restricted to a safe character allowlist before it reaches
+`adb shell input text`. API bodies are capped at 64 KiB, WebSocket frames at
+16 MiB.
 
 **Headers.** `Content-Security-Policy` denies inline scripts (noVNC is loaded as
 a module), frames, objects and form posts to other origins. `X-Frame-Options:

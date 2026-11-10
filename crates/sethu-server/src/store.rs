@@ -36,8 +36,12 @@ pub enum StoreError {
 pub enum HostKind {
     /// macOS Screen Sharing / any RFB (VNC) server.
     Macos,
-    /// iPhone connected to a Mac running WebDriverAgent.
+    /// Windows with a third-party VNC server (TightVNC, UltraVNC, RealVNC).
+    Windows,
+    /// iPhone or iPad connected to a Mac running WebDriverAgent.
     Ios,
+    /// Android phone or tablet reachable through `adb`.
+    Android,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

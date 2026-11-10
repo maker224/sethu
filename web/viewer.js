@@ -3,6 +3,7 @@
 
 import { mountVnc } from "./viewer-vnc.js";
 import { mountIos } from "./viewer-ios.js";
+import { mountAndroid } from "./viewer-android.js";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -167,7 +168,12 @@ async function boot() {
   els.target.title = host.target;
   document.body.dataset.kind = host.kind;
 
-  const mount = host.kind === "ios" ? mountIos : mountVnc;
+  const mount =
+    host.kind === "ios"
+      ? mountIos
+      : host.kind === "android"
+        ? mountAndroid
+        : mountVnc;
   try {
     activeViewer = await mount({
       host,

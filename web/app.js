@@ -2,6 +2,17 @@
 
 const $ = (selector, root = document) => root.querySelector(selector);
 
+const KIND_META = {
+  macos: { icon: "i-mac", label: "Mac · Screen Sharing" },
+  windows: { icon: "i-windows", label: "Windows · VNC" },
+  ios: { icon: "i-iphone", label: "iPhone / iPad · WDA" },
+  android: { icon: "i-android", label: "Android · adb" },
+};
+
+function kindMeta(kind) {
+  return KIND_META[kind] || KIND_META.macos;
+}
+
 const state = {
   user: null,
   csrf: "",
@@ -9,6 +20,7 @@ const state = {
   registration: true,
   version: "",
   tab: "login",
+  filter: "all",
 };
 
 class ApiError extends Error {
@@ -209,33 +221,60 @@ async function loadHosts() {
 function renderHosts() {
   const grid = $("#hosts-grid");
   const empty = $("#hosts-empty");
+  const filters = $("#host-filters");
+  const filterEmpty = $("#filter-empty");
   grid.replaceChildren();
+  syncFilterTabs();
 
+  filters.classList.toggle("hidden", state.hosts.length === 0);
   if (state.hosts.length === 0) {
     empty.classList.remove("hidden");
+    filterEmpty.classList.add("hidden");
     return;
   }
   empty.classList.add("hidden");
 
-  for (const host of state.hosts) {
+  const visible =
+    state.filter === "all"
+      ? state.hosts
+      : state.hosts.filter((host) => host.kind === state.filter);
+  filterEmpty.classList.toggle("hidden", visible.length > 0);
+
+  for (const host of visible) {
     grid.append(buildHostCard(host));
   }
 }
 
+function setFilter(filter) {
+  state.filter = filter;
+  renderHosts();
+}
+
+function syncFilterTabs() {
+  document.querySelectorAll(".filter-tab").forEach((button) => {
+    const active = button.dataset.filter === state.filter;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+}
+
+$("#host-filters").addEventListener("click", (event) => {
+  const button = event.target.closest(".filter-tab");
+  if (button) setFilter(button.dataset.filter);
+});
+
 function buildHostCard(host) {
+  const meta = kindMeta(host.kind);
   const card = el("article", "host-card");
   card.dataset.kind = host.kind;
   card.dataset.hostId = host.id;
 
   const head = el("div", "host-card-head");
   const iconWrap = el("div", "host-icon");
-  iconWrap.append(icon(host.kind === "ios" ? "i-iphone" : "i-mac"));
+  iconWrap.append(icon(meta.icon));
 
   const titles = el("div", "host-titles");
-  titles.append(
-    el("h3", "host-name", host.name),
-    el("p", "host-kind", host.kind === "ios" ? "iPhone · WebDriverAgent" : "Mac · Screen Sharing"),
-  );
+  titles.append(el("h3", "host-name", host.name), el("p", "host-kind", meta.label));
 
   const remove = el("button", "icon-btn danger");
   remove.type = "button";
@@ -246,12 +285,12 @@ function buildHostCard(host) {
 
   head.append(iconWrap, titles, remove);
 
-  const meta = el("div", "host-meta");
+  const metaRow = el("div", "host-meta");
   const target = el("p", "host-target", host.target);
   target.title = host.target;
-  meta.append(target);
+  metaRow.append(target);
 
-  card.append(head, meta);
+  card.append(head, metaRow);
   if (host.notes) card.append(el("p", "host-notes", host.notes));
 
   const actions = el("div", "host-card-actions");
@@ -335,12 +374,36 @@ function selectedKind() {
 }
 
 function applyKind(kind) {
-  const mac = kind !== "ios";
-  $("#host-target-label").textContent = mac ? "Mac address" : "WebDriverAgent URL";
-  hostTarget.placeholder = mac ? "studio-mac.local:5900" : "http://192.168.1.20:8100";
-  $("#host-target-hint").textContent = mac
-    ? "Hostname or IP of the Mac. Port defaults to 5900."
-    : "Base URL of WebDriverAgent, usually port 8100 on the Mac it is tethered to.";
+  const config = {
+    macos: {
+      label: "Mac address",
+      placeholder: "studio-mac.local:5900",
+      hint: "Hostname or IP of the Mac. Port defaults to 5900.",
+    },
+    windows: {
+      label: "PC address",
+      placeholder: "desktop-pc.local:5900",
+      hint: "Hostname or IP of the Windows PC running a VNC server. Port defaults to 5900.",
+    },
+    ios: {
+      label: "WebDriverAgent URL",
+      placeholder: "http://192.168.1.20:8100",
+      hint: "Base URL of WebDriverAgent, usually port 8100 on the Mac it is tethered to.",
+    },
+    android: {
+      label: "ADB serial",
+      placeholder: "R58M1234567 or 192.168.1.30:5555",
+      hint: "The serial shown by `adb devices` on the Sethu host. Enable USB or wireless debugging.",
+    },
+  }[kind] || {
+    label: "Address",
+    placeholder: "",
+    hint: "",
+  };
+
+  $("#host-target-label").textContent = config.label;
+  hostTarget.placeholder = config.placeholder;
+  $("#host-target-hint").textContent = config.hint;
 }
 
 function openDialog() {
@@ -392,6 +455,7 @@ hostForm.addEventListener("submit", async (event) => {
       body: { name, kind, target, notes: notes || null },
     });
     dialog.close();
+    state.filter = "all";
     await loadHosts();
     toast(`${name} added.`, "success");
   } catch (error) {

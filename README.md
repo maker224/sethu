@@ -1,10 +1,10 @@
 # Sethu
 
-**Your Mac and iPhone, on any screen.**
+**Your Mac, PC and phones, on any screen.**
 
 Sethu is a self-hosted, MIT-licensed remote-access gateway written in Rust. It
-puts your Apple devices inside a browser tab so you can use them from Windows,
-Android, a Chromebook, Linux or an iPad — without installing a client or
+puts your desktops and mobile devices inside a browser tab so you can use them
+from Windows, macOS, Linux, Android or an iPad — without installing a client or
 sending traffic through someone else's cloud.
 
 ```
@@ -15,35 +15,37 @@ Windows / Android / iPad / Linux
   │   Sethu (Rust)    │  accounts · sessions · CSRF · rate limits
   └─────────┬─────────┘
             │
-    ┌───────┴────────────────────┐
-    │                            │
-    ▼ RFB (VNC)                  ▼ HTTP screenshots + WDA commands
-macOS Screen Sharing :5900    WebDriverAgent :8100 ──► iPhone / iPad
+   ┌────────┼─────────────────────┬──────────────────────┐
+   ▼ RFB (VNC)                    ▼ screenshots + WDA     ▼ screenshots + adb
+macOS Screen Sharing :5900   WebDriverAgent :8100     adb (USB / Wi-Fi)
+Windows VNC server  :5900    ──► iPhone / iPad        ──► Android phone / tablet
 ```
 
 | Device | What you get | Transport |
 | --- | --- | --- |
 | **Mac / MacBook** | Full desktop, keyboard and mouse, clipboard, scaling, view-only mode | RFB over a WebSocket-to-TCP bridge (noVNC in the browser) |
+| **Windows PC** | Full desktop and input through any VNC server (TightVNC, UltraVNC, RealVNC) | Same RFB bridge as macOS |
 | **iPhone / iPad** | Live screen, tap, swipe, text input, home/lock buttons, screenshot download, 4–15 fps | PNG frames and WDA commands over WebSocket |
+| **Android phone / tablet** | Live screen, tap, swipe, text input, home/back/recents/power, screenshot download, 3–12 fps | PNG frames from `adb screencap` and `adb shell input` |
 
 Everything runs on one small binary. Accounts, device list and sessions live in
 a single JSON file on your server. Sethu never stores device credentials — they
 travel from the browser to the device through the encrypted tunnel.
 
-![Sethu dashboard with two Macs and an iPhone](docs/dashboard.png)
+![Sethu dashboard with Mac, Windows, iPhone and Android tabs](docs/dashboard.png)
 
-> **Scope, honestly:** macOS is reached through its built-in Screen Sharing
-> server, so Screen Sharing must be enabled and allowed for your user (account
-> auth) or protected with a VNC password. iPhone mirroring uses WebDriverAgent,
-> which cannot capture audio, DRM-protected video or the lock screen. See
+> **Scope, honestly:** macOS and Windows expose screen sharing through VNC
+> (macOS Screen Sharing, or a VNC server on Windows). Windows RDP is not
+> proxied. iPhone/iPad mirroring uses WebDriverAgent and Android uses adb; both
+> poll screenshots, so there is no audio, no DRM video and a low frame rate. See
 > [Limitations](#limitations).
 
 ---
 
 ## Quick start
 
-Requirements: Rust 1.82+ and a Mac on the same network (for Screen Sharing), or
-a Mac with WebDriverAgent for iPhone mirroring.
+Requirements: Rust 1.82+ and one or more reachable devices. For Android
+mirroring, install Android platform-tools (`adb`) on the Sethu host.
 
 ```bash
 git clone https://github.com/your-org/sethu.git
@@ -100,8 +102,60 @@ VNC password.
 
 ---
 
-## Connect an iPhone or iPad
+## Connect a Windows PC
 
+Sethu speaks standard RFB, so any Windows VNC server works.
+
+1. Install [TightVNC](https://www.tightvnc.com/), UltraVNC or RealVNC on the PC.
+2. Set a VNC password and allow port `5900` through Windows Firewall.
+3. Verify from the Sethu host:
+
+   ```bash
+   nc -vz desktop-pc.local 5900
+   ```
+
+4. In Sethu, **Add device → Windows**, enter `desktop-pc.local:5900`.
+5. **Connect** and enter the VNC password.
+
+Windows Remote Desktop (RDP) is a different protocol and is not proxied — install
+a VNC server if you want browser access. The same VNC authentication caveats as
+macOS apply: use a strong password and keep port 5900 off the public internet.
+
+---
+
+## Connect an Android phone or tablet
+
+Sethu uses `adb` for both screenshots and input. Enable **Developer options →
+USB debugging** (or **Wireless debugging**) and authorize the computer running
+Sethu.
+
+```bash
+adb devices
+# List of devices attached
+# R58M1234567    device
+# 192.168.1.30:5555    device
+```
+
+Install platform-tools on the Sethu host (`brew install android-platform-tools`,
+`apt install adb`, or the official SDK). Then **Add device → Android** and enter
+the serial exactly as shown — for example `R58M1234567` or
+`192.168.1.30:5555`. **Test** reports the adb state and **Connect** opens the
+screen.
+
+Notes:
+
+- USB debugging gives adb shell access to the device. Treat the Sethu host as a
+  trusted machine and do not expose port 5555 or the adb server to the internet.
+- Android input text goes through `adb shell input text`, which has a limited
+  character set. Sethu accepts letters, digits, spaces and common punctuation.
+- Wireless debugging uses a changing port; reconnect and update the serial if it
+  rotates.
+- In Docker, install `adb` in the image (or a sidecar) and use network debugging.
+  USB devices need explicit host device mapping.
+
+---
+
+## Connect an iPhone or iPad
 Sethu talks to [WebDriverAgent][wda] (the XCTest runner used by Appium). No
 Appium server is required — Sethu calls WDA's session-less endpoints directly.
 
@@ -156,12 +210,15 @@ See `.env.example`.
 | `SETHU_COOKIE_SECURE` | auto (`true` with an `https://` public URL) | Marks the session cookie `Secure` |
 | `SETHU_ALLOW_REGISTRATION` | `true` | Set `false` after creating your account |
 | `SETHU_SESSION_TTL_HOURS` | `168` | Login lifetime |
-| `SETHU_IOS_FPS` | `10` | Default iPhone frame rate (1–15) |
+| `SETHU_IOS_FPS` | `10` | Default iPhone/iPad frame rate (1–15) |
+| `SETHU_ANDROID_FPS` | `5` | Default Android frame rate (1–15) |
+| `SETHU_ADB_PATH` | `adb` | Path to the adb executable |
+| `SETHU_ADB_TIMEOUT_SECONDS` | `10` | Per-command adb timeout |
 | `SETHU_TRUST_PROXY` | `false` | Trust `X-Forwarded-For` / `X-Forwarded-Host` from a local proxy |
 | `SETHU_ALLOWED_ORIGINS` | – | Extra comma-separated browser origins |
 | `SETHU_WDA_TIMEOUT_SECONDS` | `6` | Per-request timeout for WebDriverAgent |
 | `SETHU_VNC_CONNECT_TIMEOUT_SECONDS` | `10` | TCP connect timeout for VNC |
-| `SETHU_MAX_SESSIONS` | `32` | Maximum concurrent VNC/iPhone streams |
+| `SETHU_MAX_SESSIONS` | `32` | Maximum concurrent device streams |
 | `SETHU_WEB_DIR` | – | Serve frontend files from disk (development) |
 | `SETHU_VENDOR_DIR` | `./web/vendor` | Optional third-party assets (vendored noVNC) |
 | `RUST_LOG` | `sethu_server=info` | `tracing` filter |
@@ -217,15 +274,16 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `POST` | `/api/auth/login` | Sign in |
 | `POST` | `/api/auth/logout` | Revoke the session |
 | `GET` | `/api/hosts` | List your devices |
-| `POST` | `/api/hosts` | Add device (`name`, `kind`: `macos`\|`ios`, `target`, `notes`) |
+| `POST` | `/api/hosts` | Add device (`name`, `kind`: `macos`\|`windows`\|`ios`\|`android`, `target`, `notes`) |
 | `GET` | `/api/hosts/{id}` | One device |
 | `PATCH` | `/api/hosts/{id}` | Rename or edit notes |
 | `DELETE` | `/api/hosts/{id}` | Remove device |
-| `POST` | `/api/hosts/{id}/test` | TCP reachability (Mac) or WDA `/status` (iPhone) |
-| `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream |
-| `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands |
+| `POST` | `/api/hosts/{id}/test` | TCP check (Mac/Windows), WDA `/status` (iPhone) or `adb get-state` (Android) |
+| `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |
+| `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands (iPhone/iPad) |
+| `GET` (WS) | `/ws/android/{id}` | PNG frames + JSON commands (Android) |
 
-WebSocket details and the iPhone message schema are documented in
+WebSocket details and the iPhone/Android message schemas are documented in
 [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
@@ -239,18 +297,19 @@ WebSocket details and the iPhone message schema are documented in
 - **CSRF** double-submit tokens on every unsafe request; **Origin/Host** checks
   also protect WebSocket upgrades.
 - **Rate limiting** per IP on login and registration.
-- **No stored device credentials.** The VNC password or macOS account
-  credentials go from the browser to the Mac through the encrypted WebSocket;
-  Sethu never parses or stores them. As the TLS endpoint, the server process
-  could in principle intercept the stream — run it on hardware you trust.
+- **No stored device credentials.** VNC passwords and account credentials go
+  from the browser to the device through the encrypted WebSocket; Sethu never
+  parses or stores them. As the TLS endpoint, the server process could in
+  principle intercept the stream — run it on hardware you trust.
 - **Hardened headers**: CSP, `X-Frame-Options: DENY`, `nosniff`, no-referrer,
   restrictive permissions policy.
 - The data file is written atomically with mode `0600`; back it up and protect it.
 
 Sethu is not a zero-trust product. A compromised Sethu server, or an account
 with access to a device, can control that device. Deploy it on a trusted network
-or behind a VPN, terminate TLS, disable registration after onboarding, and keep
-WDA bound to loopback. Full threat model: [`SECURITY.md`](SECURITY.md).
+or behind a VPN, terminate TLS, disable registration after onboarding, keep WDA
+bound to loopback and remember that adb grants shell access. Full threat model:
+[`SECURITY.md`](SECURITY.md).
 
 ---
 
@@ -258,7 +317,8 @@ WDA bound to loopback. Full threat model: [`SECURITY.md`](SECURITY.md).
 
 ```
 crates/sethu-server/
-  src/    main.rs        binary, config, graceful shutdown
+  src/
+    main.rs        binary, config, graceful shutdown
     lib.rs         router assembly
     api.rs         JSON API (auth + devices)
     auth.rs        Argon2, cookies, CSRF, AuthUser extractor
@@ -266,8 +326,10 @@ crates/sethu-server/
     store.rs       JSON persistence (users, hosts, hashed sessions)
     target.rs      device address validation
     wda.rs         WebDriverAgent client
+    adb.rs         Android adb client
     ws/vnc.rs      RFB <-> WebSocket bridge
-    ws/ios.rs      screenshot producer + command bridge
+    ws/ios.rs      iPhone screenshot/command bridge
+    ws/android.rs  Android screenshot/command bridge
     assets.rs      compiled-in frontend
     web.rs         static serving
 web/               vanilla ES modules + CSS, no build step
@@ -298,19 +360,27 @@ Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - **macOS auth:** Screen Sharing must be enabled. Both the macOS account (Apple
   Remote Desktop auth) and the legacy VNC password are supported; the VNC
   password is capped at 8 characters by the protocol.
+- **Windows:** requires a third-party VNC server; RDP is not proxied.
 - **iPhone capture:** WDA screenshots are polled, not a video stream. Expect
   4–15 fps, no audio, no DRM video, and no lock screen or passcode UI.
+- **Android capture:** `adb screencap` polling gives 3–12 fps, no audio and no
+  DRM video. `adb shell input text` supports a limited character set.
 - **WDA setup:** needs Xcode and a signed runner. On iOS 17+ XCTest needs a
   userspace tunnel (`go-ios`/`pymobiledevice3`).
+- **ADB setup:** needs platform-tools on the Sethu host and an authorized
+  device. USB access from inside a container needs extra device mapping; Wi-Fi
+  debugging is simpler for Docker deployments.
 - **No built-in TLS:** use Caddy, nginx or Traefik (examples included).
 - **Single-user devices:** devices belong to the account that added them; no
   sharing between accounts yet.
-- **No file transfer, audio, multi-monitor selection or recording** in v0.1.
+- **No file transfer, audio, multi-monitor selection, RDP or recording** in v0.2.
 
 ### Roadmap
 
 - Native macOS agent (ScreenCaptureKit + H.264/WebRTC) for stronger auth and
   lower latency
+- scrcpy-style Android H.264 streaming instead of screenshot polling
+- RDP gateway for Windows (xrdp/freeRDP) alongside VNC
 - iPhone video streaming via an MJPEG/H.264 pipeline
 - TOTP / WebAuthn second factor and audit log
 - Per-device sharing with expiring links

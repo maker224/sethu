@@ -1,7 +1,7 @@
 {
-  "name": "Sethu — remote access for Apple devices",
+  "name": "Sethu — remote access for Mac, Windows and phones",
   "short_name": "Sethu",
-  "description": "Self-hosted browser access to your Mac and iPhone.",
+  "description": "Self-hosted browser access to your Mac, Windows PC, iPhone, iPad and Android devices.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

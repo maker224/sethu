@@ -38,7 +38,7 @@ function askCredentials(types, hostName) {
       <form>
         <div class="dialog-head">
           <div>
-            <h2>Sign in to the Mac</h2>
+            <h2>Sign in to the computer</h2>
             <p class="section-note" data-role="note"></p>
           </div>
           <button class="icon-btn" type="button" data-role="close" aria-label="Cancel">
@@ -47,7 +47,7 @@ function askCredentials(types, hostName) {
         </div>
         <div class="dialog-body">
           <label class="field cred-username">
-            <span>macOS username</span>
+            <span>Username</span>
             <input name="username" autocomplete="username" autocapitalize="off" spellcheck="false" />
           </label>
           <label class="field">
@@ -55,9 +55,9 @@ function askCredentials(types, hostName) {
             <input name="password" type="password" autocomplete="current-password" required />
           </label>
           <p class="hint">
-            Use your macOS account, or the VNC password if you enabled it in
-            Screen Sharing → Computer Settings. Credentials go straight to the
-            Mac and are never stored by Sethu.
+            Use the VNC password configured on the remote computer, or the
+            account credentials if it asks for a username. Credentials go
+            straight to the device and are never stored by Sethu.
           </p>
         </div>
         <div class="dialog-foot">
@@ -163,7 +163,7 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
       ui.setStats("");
       ui.showOverlay(
         "Could not connect",
-        `The server could not open a Screen Sharing session with ${host.target}. Check that Screen Sharing is on, the address and port are right, and the Mac is reachable from this server.`,
+        `The server could not open a screen-sharing session with ${host.target}. Check that screen sharing (or VNC) is enabled, the address and port are right, and the computer is reachable from this server.`,
         { retry: true },
       );
       return;
@@ -174,8 +174,8 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
     ui.showOverlay(
       clean ? "Session ended" : "Connection lost",
       clean
-        ? "The Mac closed the screen sharing session."
-        : "The Mac or the network dropped the session. Reconnect to continue.",
+        ? "The remote computer closed the screen sharing session."
+        : "The remote computer or the network dropped the session. Reconnect to continue.",
       { retry: true },
     );
   });
@@ -208,7 +208,7 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
   rfb.addEventListener("securityfailure", (event) => {
     const reason = event.detail && event.detail.reason;
     ui.toast(
-      `Authentication failed${reason ? `: ${reason}` : ""}. Check your macOS username/password or the VNC password.`,
+      `Authentication failed${reason ? `: ${reason}` : ""}. Check the VNC password or account credentials.`,
       "error",
     );
   });

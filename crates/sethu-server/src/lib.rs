@@ -1,5 +1,6 @@
 //! Sethu server library. The binary is a thin wrapper around [`app`].
 
+pub mod adb;
 pub mod api;
 pub mod assets;
 pub mod auth;

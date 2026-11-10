@@ -29,6 +29,12 @@ pub struct Config {
     pub session_ttl: Duration,
     /// Default screenshots per second for iPhone mirroring (1-15).
     pub ios_fps: u8,
+    /// Default screenshots per second for Android mirroring (1-15).
+    pub android_fps: u8,
+    /// Path to the `adb` executable used for Android devices.
+    pub adb_path: String,
+    /// Timeout for a single adb command.
+    pub adb_timeout: Duration,
     /// Extra origins accepted for browser requests (comma separated).
     pub allowed_origins: Vec<String>,
     /// Trust `X-Forwarded-For` when rate limiting. Only enable behind a proxy.
@@ -90,6 +96,9 @@ impl Config {
             allow_registration: env_bool("SETHU_ALLOW_REGISTRATION", true),
             session_ttl: Duration::from_secs(env_u64("SETHU_SESSION_TTL_HOURS", 168) * 3_600),
             ios_fps: env_u64("SETHU_IOS_FPS", 10).clamp(1, 15) as u8,
+            android_fps: env_u64("SETHU_ANDROID_FPS", 5).clamp(1, 15) as u8,
+            adb_path: env("SETHU_ADB_PATH", "adb"),
+            adb_timeout: Duration::from_secs(env_u64("SETHU_ADB_TIMEOUT_SECONDS", 10).max(1)),
             allowed_origins,
             trust_proxy: env_bool("SETHU_TRUST_PROXY", false),
             wda_timeout: Duration::from_secs(env_u64("SETHU_WDA_TIMEOUT_SECONDS", 6).max(1)),
@@ -112,6 +121,9 @@ impl Config {
             allow_registration: true,
             session_ttl: Duration::from_secs(3_600),
             ios_fps: 10,
+            android_fps: 5,
+            adb_path: "adb".into(),
+            adb_timeout: Duration::from_secs(2),
             allowed_origins: vec![],
             trust_proxy: false,
             wda_timeout: Duration::from_secs(2),
