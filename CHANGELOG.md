@@ -4,6 +4,16 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] — 2026-11-10
+
+### Fixed
+
+- Frontend scripts and styles are referenced with a version query
+  (`/app.js?v=…`) so a browser that cached the old immutable `app.js` cannot
+  pair it with the new HTML and hang on the loading screen.
+- Added `boot-guard.js`: if the app never boots within 12 seconds, the spinner
+  is replaced with a Reload / clear-cache hint instead of loading forever.
+
 ## [0.5.1] — 2026-11-10
 
 ### Fixed
@@ -143,3 +153,4 @@ Initial public release.
 [0.4.0]: https://github.com/your-org/sethu/releases/tag/v0.4.0
 [0.5.0]: https://github.com/your-org/sethu/releases/tag/v0.5.0
 [0.5.1]: https://github.com/your-org/sethu/releases/tag/v0.5.1
+[0.5.2]: https://github.com/your-org/sethu/releases/tag/v0.5.2

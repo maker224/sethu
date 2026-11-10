@@ -12,7 +12,7 @@
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=0.5.2" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -442,6 +442,7 @@
       <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
     </noscript>
 
-    <script type="module" src="/app.js"></script>
+    <script src="/boot-guard.js?v=0.5.2"></script>
+    <script type="module" src="/app.js?v=0.5.2"></script>
   </body>
 </html>

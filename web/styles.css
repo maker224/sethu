@@ -187,6 +187,30 @@ code {
   color: var(--accent);
 }
 
+.boot-error {
+  max-width: 430px;
+  padding: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: rgba(10, 17, 32, 0.95);
+  box-shadow: var(--shadow);
+  text-align: center;
+  font-family: var(--font);
+}
+
+.boot-error h2 {
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+  letter-spacing: -0.015em;
+}
+
+.boot-error p {
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
 /* ---------- top bar ---------- */
 
 .topbar {
