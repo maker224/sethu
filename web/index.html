@@ -166,22 +166,16 @@
             <p id="auth-subtitle">Welcome back. Pick up where you left off.</p>
           </div>
 
-          <div id="auth-tabs" class="tabs" role="tablist" aria-label="Authentication">
-            <button class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="login">Sign in</button>
-            <button class="tab" type="button" role="tab" aria-selected="false" data-tab="register" id="register-tab">Create account</button>
-          </div>
+          <div id="auth-tabs-slot"></div>
 
           <form id="auth-form" novalidate>
             <label class="field">
               <span>Email</span>
               <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com" required />
             </label>
-            <label id="auth-password-field" class="field">
-              <span>Password</span>
-              <input id="auth-password" type="password" autocomplete="current-password" placeholder="At least 10 characters" minlength="10" required />
-            </label>
+            <div id="auth-password-slot"></div>
             <p id="auth-error" class="form-error" role="alert"></p>
-            <button id="auth-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
+            <button id="auth-submit" class="btn btn-primary btn-block" type="submit">Continue</button>
           </form>
 
           <p id="auth-hint" class="auth-hint">First run? Create the account that owns this server.</p>
@@ -427,6 +421,20 @@
         </div>
       </form>
     </dialog>
+
+    <template id="auth-tabs-template">
+      <div id="auth-tabs" class="tabs" role="tablist" aria-label="Authentication">
+        <button class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="login">Sign in</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-tab="register" id="register-tab">Create account</button>
+      </div>
+    </template>
+
+    <template id="auth-password-template">
+      <label id="auth-password-field" class="field">
+        <span>Password</span>
+        <input id="auth-password" type="password" autocomplete="current-password" placeholder="At least 10 characters" minlength="10" required />
+      </label>
+    </template>
 
     <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 

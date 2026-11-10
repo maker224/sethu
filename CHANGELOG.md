@@ -4,6 +4,16 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-11-10
+
+### Fixed
+
+- The password input is now **removed from the DOM** in username mode instead
+  of merely hidden. Secure mode injects the password field and tabs from a
+  template only when `SETHU_AUTH=required`.
+- Frontend assets are served with `no-cache` (revalidated via ETag) instead of
+  `immutable`, so a browser cannot keep an old login UI after an upgrade.
+
 ## [0.5.0] — 2026-11-10
 
 ### Added
@@ -132,3 +142,4 @@ Initial public release.
 [0.3.0]: https://github.com/your-org/sethu/releases/tag/v0.3.0
 [0.4.0]: https://github.com/your-org/sethu/releases/tag/v0.4.0
 [0.5.0]: https://github.com/your-org/sethu/releases/tag/v0.5.0
+[0.5.1]: https://github.com/your-org/sethu/releases/tag/v0.5.1

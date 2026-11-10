@@ -36,7 +36,7 @@ pub async fn serve(State(state): State<AppState>, req: Request) -> Response {
     }
 
     match assets::lookup(&path) {
-        Some((mime, bytes)) => with_cache(mime, bytes.to_vec(), &path, is_immutable(&path)),
+        Some((mime, bytes)) => with_cache(mime, bytes.to_vec(), &path, false),
         None => {
             // Optional third-party assets (vendored noVNC) live outside the
             // binary so they can be dropped in without a rebuild.
@@ -61,7 +61,7 @@ async fn read_vendor(state: &AppState, path: &str) -> Option<Response> {
     let bytes = tokio::fs::read(state.cfg.vendor_dir.join(relative))
         .await
         .ok()?;
-    Some(with_cache(mime_for(relative), bytes, path, true))
+    Some(with_cache(mime_for(relative), bytes, path, false))
 }
 
 fn with_cache(mime: &str, bytes: Vec<u8>, path: &str, immutable: bool) -> Response {
@@ -83,13 +83,6 @@ fn with_cache(mime: &str, bytes: Vec<u8>, path: &str, immutable: bool) -> Respon
         HeaderValue::from_static("nosniff"),
     );
     response
-}
-
-fn is_immutable(path: &str) -> bool {
-    matches!(
-        path,
-        "/styles.css" | "/app.js" | "/viewer.js" | "/viewer-vnc.js" | "/viewer-ios.js"
-    )
 }
 
 fn not_found() -> Response {

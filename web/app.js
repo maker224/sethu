@@ -101,13 +101,37 @@ function toast(message, kind = "info") {
 
 const authForm = $("#auth-form");
 const authEmail = $("#auth-email");
-const authPassword = $("#auth-password");
 const authError = $("#auth-error");
 const authSubmit = $("#auth-submit");
-const registerTab = $("#register-tab");
+const authTabsSlot = $("#auth-tabs-slot");
+const authPasswordSlot = $("#auth-password-slot");
+
+const passwordInput = () => $("#auth-password");
+
+function secureUiInstalled() {
+  return Boolean($("#auth-tabs"));
+}
+
+function installSecureUi() {
+  if (secureUiInstalled()) return;
+  authTabsSlot.replaceChildren($("#auth-tabs-template").content.cloneNode(true));
+  authPasswordSlot.replaceChildren($("#auth-password-template").content.cloneNode(true));
+  const registerButton = document.querySelector('.tab[data-tab="register"]');
+  if (registerButton) registerButton.classList.toggle("hidden", !state.registration);
+}
+
+function removeSecureUi() {
+  authTabsSlot.replaceChildren();
+  authPasswordSlot.replaceChildren();
+}
+
+authTabsSlot.addEventListener("click", (event) => {
+  const button = event.target.closest(".tab");
+  if (button) setTab(button.dataset.tab);
+});
 
 function setTab(tab) {
-  if (state.usernameOnly) return;
+  if (!secureUiInstalled()) return;
   state.tab = tab === "register" && state.registration ? "register" : "login";
   document.querySelectorAll(".tab").forEach((button) => {
     const selected = button.dataset.tab === state.tab;
@@ -121,7 +145,10 @@ function setTab(tab) {
     ? "This account owns the Sethu server."
     : "Welcome back. Pick up where you left off.";
   authSubmit.textContent = registering ? "Create account" : "Sign in";
-  authPassword.setAttribute("autocomplete", registering ? "new-password" : "current-password");
+  const password = passwordInput();
+  if (password) {
+    password.setAttribute("autocomplete", registering ? "new-password" : "current-password");
+  }
   $("#auth-hint").textContent = registering
     ? "Use at least 10 characters. There is no password reset — store it safely."
     : "First run? Create the account that owns this server.";
@@ -130,9 +157,8 @@ function setTab(tab) {
 
 function configureAuthMode() {
   const usernameMode = state.usernameOnly;
-  $("#auth-tabs").classList.toggle("hidden", usernameMode);
-  $("#auth-password-field").classList.toggle("hidden", usernameMode);
-  authPassword.required = !usernameMode;
+  if (usernameMode) removeSecureUi();
+  else installSecureUi();
 
   authEmail.type = usernameMode ? "text" : "email";
   authEmail.autocomplete = usernameMode ? "username" : "email";
@@ -155,9 +181,6 @@ function configureAuthMode() {
     setTab(state.tab);
   }
 }
-
-registerTab.addEventListener("click", () => setTab("register"));
-$('.tab[data-tab="login"]').addEventListener("click", () => setTab("login"));
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -192,7 +215,7 @@ authForm.addEventListener("submit", async (event) => {
   }
 
   const email = authEmail.value.trim();
-  const password = authPassword.value;
+  const password = passwordInput()?.value || "";
   if (!email || !password) {
     authError.textContent = "Enter your email and password.";
     return;
@@ -213,7 +236,7 @@ authForm.addEventListener("submit", async (event) => {
     toast(registering ? "Account created. Welcome to Sethu." : "Welcome back.", "success");
   } catch (error) {
     authError.textContent = error.message;
-    authPassword.select();
+    passwordInput()?.select();
   } finally {
     authSubmit.disabled = false;
     authSubmit.textContent = state.tab === "register" ? "Create account" : "Sign in";
@@ -247,8 +270,7 @@ function showAuth() {
     $("#dashboard-view").classList.remove("hidden");
     return;
   }
-  registerTab.classList.toggle("hidden", !state.registration);
-  $("#auth-hint").classList.toggle("hidden", !state.registration);
+  $("#auth-hint").classList.toggle("hidden", !state.registration && !state.usernameOnly);
   configureAuthMode();
   if (!state.registration && !state.usernameOnly) setTab("login");
   document.title = state.usernameOnly ? "Sethu — enter username" : "Sethu — sign in";
