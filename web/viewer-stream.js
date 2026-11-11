@@ -1,5 +1,5 @@
 /* Shared screenshot-stream viewer used by the iPhone and Android modules.
-   Handles frames, scaling, gestures, fps stats and connection lifecycle. */
+   Handles frames, scaling, gestures, fps stats and a self-healing connection. */
 
 export async function mountStream({
   host,
@@ -19,20 +19,34 @@ export async function mountStream({
   let scale = 1;
   let stopped = false;
   let ready = false;
+  let connectedOnce = false;
   let gesture = null;
   let pendingFrame = null;
   let drawing = false;
   let frames = 0;
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  const socket = new WebSocket(`${protocol}://${location.host}${wsPath}`);
-  socket.binaryType = "blob";
+  const socketUrl = `${protocol}://${location.host}${wsPath}`;
+
+  let socket = null;
+  let reconnectTimer = null;
+  let attempts = 0;
+  let heartbeatTimer = null;
+  let watchdogTimer = null;
+  let lastFrameAt = 0;
+  let offline = !navigator.onLine;
+  let wakeLock = null;
+
+  const listeners = new AbortController();
+  const { signal } = listeners;
 
   ui.setStatus("warn", "Connecting");
   ui.setStats("");
 
   const send = (message) => {
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(message));
+    }
   };
 
   function resizeCanvas(width, height) {
@@ -61,14 +75,33 @@ export async function mountStream({
     drawing = false;
   }
 
+  function keepAwake() {
+    if (!window.isSecureContext || !navigator.wakeLock || wakeLock) return;
+    navigator.wakeLock
+      .request("screen")
+      .then((lock) => {
+        wakeLock = lock;
+        lock.addEventListener("release", () => {
+          wakeLock = null;
+        });
+      })
+      .catch(() => {
+        /* wake lock is best-effort */
+      });
+  }
+
   function handleMessage(message) {
     switch (message.type) {
       case "ready":
-        scale = Number(message.scale) > 0 ? Number(message.scale) : 1;
         ready = true;
+        connectedOnce = true;
+        attempts = 0;
+        lastFrameAt = Date.now();
+        scale = Number(message.scale) > 0 ? Number(message.scale) : 1;
         resizeCanvas(message.width, message.height);
         ui.hideOverlay();
         ui.setStatus("live", "Live");
+        keepAwake();
         break;
       case "size":
         resizeCanvas(message.width, message.height);
@@ -83,43 +116,109 @@ export async function mountStream({
     }
   }
 
-  socket.addEventListener("message", (event) => {
-    if (typeof event.data === "string") {
-      try {
-        handleMessage(JSON.parse(event.data));
-      } catch {
-        /* ignore malformed control frames */
-      }
-      return;
-    }
-    pendingFrame = event.data;
-    drainFrames();
-  });
+  function stopHeartbeat() {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
 
-  socket.addEventListener("open", () => {
-    ui.setStatus("warn", "Waiting for frames");
-  });
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = window.setInterval(() => {
+      send({ type: "ping" });
+    }, 15_000);
+  }
 
-  socket.addEventListener("error", () => {
-    if (!stopped && ready) ui.toast("The device connection reported an error.", "error");
-  });
-
-  socket.addEventListener("close", () => {
+  function scheduleReconnect(reason) {
     if (stopped) return;
-    if (!ready) {
-      ui.setStatus("off", "Unavailable");
+    if (offline) {
+      ui.setStatus("warn", "Waiting for network");
       ui.setStats("");
-      ui.showOverlay("Could not connect", deviceHint, { retry: true });
+      ui.showOverlay("Waiting for network…", "Reconnecting automatically when the connection returns.", {
+        spinner: true,
+      });
       return;
     }
-    ui.setStatus("off", "Connection lost");
+
+    attempts += 1;
+    const delay = Math.min(15_000, 1_000 * 2 ** Math.min(attempts - 1, 4));
+    window.clearTimeout(reconnectTimer);
+    ui.setStatus("warn", "Reconnecting…");
     ui.setStats("");
     ui.showOverlay(
-      "Connection lost",
-      `${host.name} stopped sending frames. Check the device and reconnect.`,
-      { retry: true },
+      connectedOnce ? "Reconnecting…" : "Connecting…",
+      `${reason} Retrying automatically in ${Math.ceil(delay / 1000)}s.`,
+      { spinner: true },
     );
-  });
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, delay);
+  }
+
+  function connect() {
+    if (stopped || offline) return;
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    stopHeartbeat();
+
+    if (socket) {
+      try {
+        socket.close();
+      } catch {
+        /* already closed */
+      }
+    }
+
+    ready = false;
+    pendingFrame = null;
+    const current = new WebSocket(socketUrl);
+    current.binaryType = "blob";
+    socket = current;
+
+    current.addEventListener("open", () => {
+      if (stopped || socket !== current) return;
+      ui.setStatus("warn", "Waiting for frames");
+      startHeartbeat();
+    });
+
+    current.addEventListener("message", (event) => {
+      if (stopped || socket !== current) return;
+      if (typeof event.data === "string") {
+        try {
+          handleMessage(JSON.parse(event.data));
+        } catch {
+          /* ignore malformed control frames */
+        }
+        return;
+      }
+      lastFrameAt = Date.now();
+      pendingFrame = event.data;
+      drainFrames();
+    });
+
+    current.addEventListener("error", () => {
+      if (!stopped && ready) ui.toast("The device connection reported an error.", "error");
+    });
+
+    current.addEventListener("close", () => {
+      if (stopped || socket !== current) return;
+      stopHeartbeat();
+      ready = false;
+      scheduleReconnect(connectedOnce ? "The stream stopped." : deviceHint);
+    });
+  }
+
+  watchdogTimer = window.setInterval(() => {
+    if (stopped || !ready || offline) return;
+    if (Date.now() - lastFrameAt > 8_000) {
+      // A silently dead socket should be replaced instead of freezing the screen.
+      ui.setStatus("warn", "Reconnecting…");
+      ui.showOverlay("Reconnecting…", "The stream stalled. Reconnecting automatically.", {
+        spinner: true,
+      });
+      connect();
+    }
+  }, 2_000);
 
   const fpsTimer = window.setInterval(() => {
     ui.setStats(frames > 0 ? `${frames} fps` : "");
@@ -138,6 +237,7 @@ export async function mountStream({
   canvas.addEventListener("pointerdown", (event) => {
     if (!dims.w) return;
     event.preventDefault();
+    keepAwake();
     canvas.setPointerCapture(event.pointerId);
     gesture = {
       startX: event.clientX,
@@ -195,15 +295,56 @@ export async function mountStream({
 
   const actions = buildActions({ send, saveScreenshot, host, ui });
 
+  window.addEventListener("offline", () => {
+    offline = true;
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    ui.setStatus("warn", "Waiting for network");
+    ui.setStats("");
+    ui.showOverlay("Waiting for network…", "The phone lost its network connection. It will reconnect automatically.", {
+      spinner: true,
+    });
+    try {
+      socket?.close();
+    } catch {
+      /* already closed */
+    }
+  }, { signal });
+
+  window.addEventListener("online", () => {
+    offline = false;
+    if (stopped) return;
+    attempts = 0;
+    connect();
+  }, { signal });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !stopped && !ready && !offline) {
+      attempts = 0;
+      connect();
+    }
+    if (document.visibilityState === "visible") keepAwake();
+  }, { signal });
+
+  connect();
+
   return {
     actions,
     destroy() {
       stopped = true;
+      listeners.abort();
       window.clearInterval(fpsTimer);
-      try {
-        socket.close();
-      } catch {
-        /* already closed */
+      window.clearInterval(watchdogTimer);
+      window.clearInterval(heartbeatTimer);
+      window.clearTimeout(reconnectTimer);
+      wakeLock?.release().catch(() => {});
+      wakeLock = null;
+      if (socket) {
+        try {
+          socket.close();
+        } catch {
+          /* already closed */
+        }
       }
       screen.replaceChildren();
     },

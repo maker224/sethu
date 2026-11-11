@@ -4,6 +4,24 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-11-11
+
+### Added
+
+- **Self-healing wireless sessions.** VNC and iPhone/Android viewers now
+  reconnect automatically with exponential backoff instead of asking you to
+  reload, including after Wi-Fi drops, server restarts and tab backgrounding.
+- **Heartbeats**: the VNC bridge sends WebSocket pings, and screenshot viewers
+  ping every 15s, keeping NAT/proxy idle timers alive.
+- **Stream watchdog**: a silently stalled screenshot connection is replaced
+  after ~8s without frames.
+- **Seamless VNC re-auth**: credentials entered once are kept in page memory for
+  the life of the viewer and reused on reconnect (never written to storage).
+- **Network/visibility recovery**: `online` and tab-visible events reconnect
+  immediately; offline shows “Waiting for network…” instead of a failure.
+- **Screen wake-lock** on HTTPS phones/tablets so the display does not sleep
+  during an active viewer.
+
 ## [0.7.1] — 2026-11-11
 
 ### Changed
@@ -193,3 +211,4 @@ Initial public release.
 [0.6.0]: https://github.com/maker224/sethu/releases/tag/v0.6.0
 [0.7.0]: https://github.com/maker224/sethu/releases/tag/v0.7.0
 [0.7.1]: https://github.com/maker224/sethu/releases/tag/v0.7.1
+[0.8.0]: https://github.com/maker224/sethu/releases/tag/v0.8.0

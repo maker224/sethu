@@ -51,6 +51,10 @@ authentication layer.
   a name and creates the workspace on first use; anyone who can reach the port
   and knows a username can enter it. Sessions/CSRF still apply, but treat the
   username as a label, not a credential. Use only on a trusted LAN/VPN.
+- **VNC credentials are cached in page memory** while a viewer is open so an
+  automatic reconnect does not prompt again. They are never written to
+  localStorage, cookies or the server, and are cleared when the viewer is
+  destroyed or the tab closes.
 - **QR pairing codes are credentials.** A pair code grants a full session to
   whoever redeems it. Codes are 24 random bytes, single-use, kept in memory and
   expire after 2 minutes. The confirmation step prevents link previews from

@@ -1,4 +1,5 @@
-/* macOS viewer: noVNC over the server's WebSocket-to-TCP bridge. */
+/* macOS/Windows viewer: noVNC over the server's WebSocket-to-TCP bridge.
+   Reconnects automatically and keeps credentials in memory for the session. */
 
 const NOVNC_VERSION = "1.7.0";
 const NOVNC_CDN = `https://cdn.jsdelivr.net/npm/@novnc/novnc@${NOVNC_VERSION}/core/rfb.js`;
@@ -112,13 +113,12 @@ function askCredentials(types, hostName) {
 }
 
 export async function mountVnc({ host, screen, ui, vendorNovnc }) {
-  ui.showOverlay("Connecting…", "Negotiating screen sharing with the Mac.", { spinner: true });
+  ui.showOverlay("Connecting…", "Negotiating screen sharing with the computer.", { spinner: true });
 
   const RFB = await loadRfb(Boolean(vendorNovnc));
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   const url = `${protocol}://${location.host}/ws/vnc/${host.id}`;
-
-  const rfb = new RFB(screen, url, {
+  const options = {
     shared: true,
     wsProtocols: ["binary"],
     scaleViewport: true,
@@ -127,96 +127,157 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
     showDotCursor: true,
     focusOnClick: true,
     background: "#02040a",
-  });
+  };
 
+  let rfb = null;
   let stopped = false;
-  let connected = false;
   let cancelled = false;
-  let ended = false;
+  let connected = false;
+  let connectedOnce = false;
+  let credentials = null;
   let credentialsPending = false;
+  let reconnectTimer = null;
+  let attempts = 0;
+  let fit = true;
+  let viewOnly = false;
+  let qualityLevel = 6;
+  let compressionLevel = 4;
+  let wakeLock = null;
 
-  rfb.addEventListener("connect", () => {
-    connected = true;
-    ui.hideOverlay();
-    ui.setStatus("live", "Connected");
-    ui.setStats("");
-  });
+  const listeners = new AbortController();
+  const { signal } = listeners;
 
-  rfb.addEventListener("disconnect", (event) => {
-    if (stopped) return;
-    ended = true;
+  function keepAwake() {
+    if (!window.isSecureContext || !navigator.wakeLock || wakeLock) return;
+    navigator.wakeLock
+      .request("screen")
+      .then((lock) => {
+        wakeLock = lock;
+        lock.addEventListener("release", () => {
+          wakeLock = null;
+        });
+      })
+      .catch(() => {
+        /* best-effort */
+      });
+  }
 
-    if (cancelled) {
-      ui.setStatus("off", "Sign-in cancelled");
-      ui.setStats("");
-      ui.showOverlay(
-        "Sign-in cancelled",
-        "Reconnect and enter your macOS account or the VNC password to continue.",
-        { retry: true },
-      );
-      return;
+  function stopSocket(socket) {
+    if (!socket) return;
+    try {
+      socket.disconnect();
+    } catch {
+      /* already closed */
     }
+  }
 
-    const clean = Boolean(event.detail && event.detail.clean);
-    if (!connected) {
-      ui.setStatus("off", "Unavailable");
-      ui.setStats("");
-      ui.showOverlay(
-        "Could not connect",
-        `The server could not open a screen-sharing session with ${host.target}. Check that screen sharing (or VNC) is enabled, the address and port are right, and the computer is reachable from this server.`,
-        { retry: true },
-      );
-      return;
-    }
-
-    ui.setStatus("off", clean ? "Disconnected" : "Connection lost");
+  function scheduleReconnect(reason) {
+    if (stopped || cancelled) return;
+    attempts += 1;
+    const delay = Math.min(15_000, 1_000 * 2 ** Math.min(attempts - 1, 4));
+    window.clearTimeout(reconnectTimer);
+    ui.setStatus("warn", "Reconnecting…");
     ui.setStats("");
     ui.showOverlay(
-      clean ? "Session ended" : "Connection lost",
-      clean
-        ? "The remote computer closed the screen sharing session."
-        : "The remote computer or the network dropped the session. Reconnect to continue.",
-      { retry: true },
+      connectedOnce ? "Reconnecting…" : "Connecting…",
+      `${reason} Retrying automatically in ${Math.ceil(delay / 1000)}s.`,
+      { spinner: true },
     );
-  });
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, delay);
+  }
 
-  rfb.addEventListener("credentialsrequired", async (event) => {
-    if (credentialsPending) return;
-    credentialsPending = true;
-    const types = (event.detail && event.detail.types) || ["password"];
-    try {
-      const credentials = await askCredentials(types, host.name);
-      if (!credentials) {
-        cancelled = true;
-        try {
-          rfb.disconnect();
-        } catch {
-          /* already closed */
-        }
+  function connect() {
+    if (stopped) return;
+    window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+
+    if (rfb) {
+      const old = rfb;
+      rfb = null;
+      stopSocket(old);
+    }
+    screen.replaceChildren();
+    connected = false;
+    cancelled = false;
+
+    const socket = new RFB(screen, url, options);
+    socket.scaleViewport = fit;
+    socket.viewOnly = viewOnly;
+    socket.qualityLevel = qualityLevel;
+    socket.compressionLevel = compressionLevel;
+    rfb = socket;
+
+    socket.addEventListener("connect", () => {
+      if (rfb !== socket) return;
+      connected = true;
+      connectedOnce = true;
+      attempts = 0;
+      ui.hideOverlay();
+      ui.setStatus("live", "Connected");
+      ui.setStats("");
+      keepAwake();
+    });
+
+    socket.addEventListener("disconnect", (event) => {
+      if (stopped || rfb !== socket) return;
+      connected = false;
+      if (cancelled) {
+        ui.setStatus("off", "Sign-in cancelled");
+        ui.setStats("");
+        ui.showOverlay(
+          "Sign-in cancelled",
+          "Reconnect and enter your account or VNC password to continue.",
+          { retry: true },
+        );
         return;
       }
+      const clean = Boolean(event.detail && event.detail.clean);
+      scheduleReconnect(clean ? "The screen-sharing session ended." : "The connection dropped.");
+    });
+
+    socket.addEventListener("credentialsrequired", async (event) => {
+      if (rfb !== socket || credentialsPending) return;
+      credentialsPending = true;
+      const types = (event.detail && event.detail.types) || ["password"];
       try {
-        rfb.sendCredentials(credentials);
+        if (credentials && (!types.includes("username") || credentials.username)) {
+          // Same device, same session: reuse the in-memory credentials so a
+          // reconnect is seamless. They are never written to storage.
+          socket.sendCredentials(credentials);
+          return;
+        }
+        const entered = await askCredentials(types, host.name);
+        if (!entered) {
+          cancelled = true;
+          stopSocket(socket);
+          return;
+        }
+        credentials = entered;
+        socket.sendCredentials(entered);
       } catch {
-        ui.toast("Could not send the credentials to the Mac.", "error");
+        ui.toast("Could not send the credentials to the computer.", "error");
+      } finally {
+        credentialsPending = false;
       }
-    } finally {
-      credentialsPending = false;
-    }
-  });
+    });
 
-  rfb.addEventListener("securityfailure", (event) => {
-    const reason = event.detail && event.detail.reason;
-    ui.toast(
-      `Authentication failed${reason ? `: ${reason}` : ""}. Check the VNC password or account credentials.`,
-      "error",
-    );
-  });
+    socket.addEventListener("securityfailure", (event) => {
+      credentials = null;
+      const reason = event.detail && event.detail.reason;
+      ui.toast(
+        `Authentication failed${reason ? `: ${reason}` : ""}. Check the VNC password or account credentials.`,
+        "error",
+      );
+    });
 
-  rfb.addEventListener("desktopname", (event) => {
-    const name = event.detail && event.detail.name;
-    if (name) ui.setStats(name);
-  });
+    socket.addEventListener("desktopname", (event) => {
+      const name = event.detail && event.detail.name;
+      if (name) ui.setStats(name);
+    });
+  }
 
   const actions = [
     {
@@ -225,8 +286,9 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
       icon: "i-expand",
       active: true,
       run: () => {
-        rfb.scaleViewport = !rfb.scaleViewport;
-        return rfb.scaleViewport;
+        fit = !fit;
+        if (rfb) rfb.scaleViewport = fit;
+        return fit;
       },
     },
     {
@@ -235,8 +297,9 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
       icon: "i-eye",
       active: false,
       run: () => {
-        rfb.viewOnly = !rfb.viewOnly;
-        return rfb.viewOnly;
+        viewOnly = !viewOnly;
+        if (rfb) rfb.viewOnly = viewOnly;
+        return viewOnly;
       },
     },
     {
@@ -250,23 +313,56 @@ export async function mountVnc({ host, screen, ui, vendorNovnc }) {
         { value: "1", label: "Lowest" },
       ],
       onChange: (value) => {
-        const level = Number(value);
-        rfb.qualityLevel = level;
-        rfb.compressionLevel = level >= 6 ? 2 : level >= 3 ? 4 : 7;
+        qualityLevel = Number(value);
+        compressionLevel = qualityLevel >= 6 ? 2 : qualityLevel >= 3 ? 4 : 7;
+        if (rfb) {
+          rfb.qualityLevel = qualityLevel;
+          rfb.compressionLevel = compressionLevel;
+        }
       },
     },
   ];
+
+  window.addEventListener("online", () => {
+    if (stopped || cancelled) return;
+    if (!connected && !credentialsPending && !document.querySelector("dialog.cred-dialog")) {
+      attempts = 0;
+      connect();
+    }
+  }, { signal });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      keepAwake();
+      if (
+        !cancelled &&
+        !connected &&
+        !credentialsPending &&
+        !document.querySelector("dialog.cred-dialog")
+      ) {
+        attempts = 0;
+        connect();
+      }
+    }
+  }, { signal });
+
+  screen.addEventListener("pointerdown", keepAwake, { signal });
+
+  connect();
 
   return {
     actions,
     destroy() {
       stopped = true;
-      if (ended) return;
-      try {
-        rfb.disconnect();
-      } catch {
-        /* already closed */
-      }
+      listeners.abort();
+      window.clearTimeout(reconnectTimer);
+      wakeLock?.release().catch(() => {});
+      wakeLock = null;
+      credentials = null;
+      const old = rfb;
+      rfb = null;
+      stopSocket(old);
+      screen.replaceChildren();
     },
   };
 }

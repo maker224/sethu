@@ -1,6 +1,6 @@
 /* Android phone or tablet actions for the shared screenshot stream viewer. */
 
-import { mountStream } from "./viewer-stream.js?v=0.7.1";
+import { mountStream } from "./viewer-stream.js?v=0.8.0";
 
 export function mountAndroid({ host, screen, ui }) {
   return mountStream({

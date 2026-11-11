@@ -1,6 +1,6 @@
 /* iPhone / iPad actions for the shared screenshot stream viewer. */
 
-import { mountStream } from "./viewer-stream.js?v=0.7.1";
+import { mountStream } from "./viewer-stream.js?v=0.8.0";
 
 export function mountIos({ host, screen, ui }) {
   return mountStream({
