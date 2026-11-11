@@ -112,6 +112,24 @@ desktops show the QR code and hide the scanner controls; phones and tablets show
 phone's browser cannot use the camera API, so take/choose a photo of the QR or
 paste the link (or use the phone's Camera app, which needs no permission).
 
+### Stable wireless sessions
+
+Once a phone has scanned a code and opened a viewer, Sethu keeps the session
+alive without asking you to reload:
+
+- VNC and screenshot streams auto-reconnect with backoff after Wi-Fi drops,
+  server restarts, proxy timeouts or tab backgrounding.
+- The server sends VNC WebSocket pings; screenshot viewers send a heartbeat and
+  replace a stream that has gone silent for ~8 seconds.
+- Returning to the tab or regaining network reconnects immediately.
+- VNC credentials are cached **in page memory only** for seamless re-auth and
+  cleared when the viewer closes.
+- On HTTPS phones/tablets a screen wake-lock keeps the display on during an
+  active session.
+
+QR pairing itself is a one-time handoff; the reconnects reuse the HttpOnly
+session cookie, so you do not need to rescan after an interruption.
+
 ### Docker
 
 ```bash

@@ -262,6 +262,22 @@ The token is a credential: it is single-use, expires quickly, and is only
 created by an authenticated (or open-mode) browser. It is held in memory, so a
 restart invalidates outstanding codes.
 
+## Connection resilience
+
+Both viewer families are self-healing once a session exists:
+
+- **VNC** (`viewer-vnc.js`): on disconnect or a failed connect it retries with
+  1/2/4/8/15s backoff, drops the old RFB object, recreates it, and reapplies
+  scale/view-only/quality preferences. Credentials entered in the dialog are
+  cached in page memory and replayed on reconnect; `securityfailure` clears them.
+  The VNC bridge sends WebSocket pings every 25s.
+- **Screenshot streams** (`viewer-stream.js`): a new WebSocket is created on
+  close, with the same backoff. A 15s application ping keeps intermediaries
+  awake, and a watchdog reconnects if no frame arrives for 8s. `online`,
+  `offline` and `visibilitychange` drive immediate recovery.
+- Both use the existing HttpOnly session cookie, so reconnects never need the QR
+  code again. Wake locks are requested on secure origins.
+
 ## Frontend
 
 Plain ES modules and one stylesheet. No bundler, no framework, no build step.

@@ -5,6 +5,8 @@
 //! a form it understands. macOS authenticates with the VNC password configured
 //! in System Settings, which keeps secrets out of Sethu entirely.
 
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use axum::{
     extract::{
@@ -87,18 +89,29 @@ async fn bridge(socket: WebSocket, stream: TcpStream) -> Result<()> {
 
     let device_to_client = async {
         let mut buffer = vec![0u8; 64 * 1024];
+        let mut keepalive = tokio::time::interval(Duration::from_secs(25));
+        keepalive.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
-            let read = device_read
-                .read(&mut buffer)
-                .await
-                .context("reading from VNC server")?;
-            if read == 0 {
-                break;
+            tokio::select! {
+                _ = keepalive.tick() => {
+                    // Protocol-level ping: browsers auto-reply with a pong, which
+                    // keeps NAT/proxy idle timers alive during quiet screens.
+                    ws_sink
+                        .send(Message::Ping(Bytes::new()))
+                        .await
+                        .context("sending keepalive")?;
+                }
+                read = device_read.read(&mut buffer) => {
+                    let read = read.context("reading from VNC server")?;
+                    if read == 0 {
+                        break;
+                    }
+                    ws_sink
+                        .send(Message::Binary(Bytes::copy_from_slice(&buffer[..read])))
+                        .await
+                        .context("sending to browser")?;
+                }
             }
-            ws_sink
-                .send(Message::Binary(Bytes::copy_from_slice(&buffer[..read])))
-                .await
-                .context("sending to browser")?;
         }
         Ok::<(), anyhow::Error>(())
     };
