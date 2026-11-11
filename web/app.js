@@ -251,15 +251,45 @@ $("#logout").addEventListener("click", async () => {
   }
   state.user = null;
   state.csrf = "";
-  state.hosts = [];
-  state.files = [];
-  state.view = "devices";
-  state.filter = "all";
+  resetWorkspaceUi();
   showAuth();
   toast("Signed out.");
 });
 
 // ----- views -------------------------------------------------------------
+
+let hostsRequest = 0;
+let filesRequest = 0;
+
+function resetWorkspaceUi() {
+  hostsRequest += 1;
+  filesRequest += 1;
+  state.hosts = [];
+  state.files = [];
+  state.filter = "all";
+  state.view = "devices";
+
+  $("#hosts-grid").replaceChildren();
+  $("#files-list").replaceChildren();
+  $("#files-total").textContent = "";
+  $("#files-empty").classList.add("hidden");
+  $("#filter-empty").classList.add("hidden");
+  $("#hosts-empty").classList.add("hidden");
+  $("#host-filters").classList.add("hidden");
+  $("#devices-panel").classList.remove("hidden");
+  $("#files-panel").classList.add("hidden");
+  $("#add-host").classList.remove("hidden");
+  $("#dashboard-heading").textContent = "Your devices";
+  $("#dashboard-note").textContent =
+    "Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.";
+  document.querySelectorAll(".workspace-tab").forEach((button) => {
+    const active = button.dataset.view === "devices";
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  if (pairDialog.open) pairDialog.close();
+  applyDeviceUi();
+}
 
 function showAuth() {
   $("#dashboard-view").classList.add("hidden");
@@ -308,6 +338,7 @@ document.querySelectorAll(".workspace-tab").forEach((button) => {
 });
 
 async function loadSession() {
+  const previousUserId = state.user?.id;
   const info = await api("/api/session");
   state.user = info.user;
   state.csrf = info.csrf || "";
@@ -316,6 +347,10 @@ async function loadSession() {
   state.authOpen = Boolean(info.auth_open);
   state.usernameOnly = Boolean(info.username_only);
   state.maxFileBytes = Number(info.max_file_bytes) || 0;
+  if (!info.user || (previousUserId && info.user && previousUserId !== info.user.id)) {
+    // Never keep another workspace's devices or file list in memory/DOM.
+    resetWorkspaceUi();
+  }
   $("#version").textContent = state.version ? `v${state.version}` : "";
   $("#footer-version").textContent = state.version ? `v${state.version}` : "";
   return info;
@@ -324,12 +359,17 @@ async function loadSession() {
 // ----- device list -------------------------------------------------------
 
 async function loadHosts() {
+  const request = ++hostsRequest;
+  const userId = state.user?.id;
   try {
-    state.hosts = (await api("/api/hosts")) || [];
+    const hosts = (await api("/api/hosts")) || [];
+    if (request !== hostsRequest || state.user?.id !== userId) return;
+    state.hosts = hosts;
     renderHosts();
   } catch (error) {
     if (error.status === 401) {
       state.user = null;
+      resetWorkspaceUi();
       showAuth();
       return;
     }
@@ -630,11 +670,17 @@ function formatDate(unix) {
 }
 
 async function loadFiles() {
+  const request = ++filesRequest;
+  const userId = state.user?.id;
   try {
-    state.files = (await api("/api/files")) || [];
+    const files = (await api("/api/files")) || [];
+    if (request !== filesRequest || state.user?.id !== userId) return;
+    state.files = files;
     renderFiles();
   } catch (error) {
     if (error.status === 401) {
+      state.user = null;
+      resetWorkspaceUi();
       showAuth();
       return;
     }
@@ -893,6 +939,14 @@ window.addEventListener("drop", (event) => event.preventDefault());
 
 const pairDialog = $("#pair-dialog");
 let pairTimer = null;
+let pairStatusTimer = null;
+
+function clearPairTimers() {
+  window.clearInterval(pairTimer);
+  window.clearInterval(pairStatusTimer);
+  pairTimer = null;
+  pairStatusTimer = null;
+}
 
 function openPairDialog(hostId = null) {
   if (isMobileOrTablet()) {
@@ -902,7 +956,7 @@ function openPairDialog(hostId = null) {
     );
     return;
   }
-  window.clearInterval(pairTimer);
+  clearPairTimers();
   $("#pair-target").textContent = "Generating a one-time code…";
   $("#pair-qr").removeAttribute("src");
   $("#pair-url").value = "";
@@ -936,8 +990,35 @@ function openPairDialog(hostId = null) {
 
       update();
       pairTimer = window.setInterval(update, 1000);
+
+      // Close this window automatically as soon as the phone completes pairing.
+      pairStatusTimer = window.setInterval(async () => {
+        try {
+          const state = await api(`/api/pair/${encodeURIComponent(data.token)}`);
+          if (state.status === "redeemed") {
+            clearPairTimers();
+            pairDialog.close();
+            toast("Phone connected. Pairing window closed.", "success");
+          } else if (state.status === "expired") {
+            window.clearInterval(pairStatusTimer);
+            pairStatusTimer = null;
+            $("#pair-expiry").textContent =
+              "Code expired — close and reopen this window to generate a new one.";
+          }
+        } catch (error) {
+          if (error.status === 404) {
+            window.clearInterval(pairStatusTimer);
+            pairStatusTimer = null;
+            $("#pair-expiry").textContent =
+              "Code expired — close and reopen this window to generate a new one.";
+          } else if (error.status === 401) {
+            clearPairTimers();
+          }
+        }
+      }, 2000);
     })
     .catch((error) => {
+      clearPairTimers();
       toast(error.message, "error");
       pairDialog.close();
     });
@@ -946,7 +1027,7 @@ function openPairDialog(hostId = null) {
 $("#pair-mobile").addEventListener("click", () => openPairDialog());
 
 pairDialog.addEventListener("close", () => {
-  window.clearInterval(pairTimer);
+  clearPairTimers();
   $("#pair-qr").removeAttribute("src");
   $("#pair-url").value = "";
 });

@@ -566,9 +566,37 @@ async fn qr_pairing_is_single_use_and_can_target_a_device() {
     let url = reqwest::Url::parse(pair.body["url"].as_str().expect("url")).expect("pair url");
     assert_eq!(url.host_str(), Some("sethu.test"));
     let path = url.path().to_string();
+    let pair_token = pair.body["token"].as_str().expect("pair token").to_string();
+    let status_path = format!("/api/pair/{pair_token}");
+
+    let pending = call(
+        &app.app,
+        "GET",
+        &status_path,
+        None,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(pending.status, StatusCode::OK);
+    assert_eq!(pending.body["status"], "pending");
 
     let page = call(&app.app, "GET", &path, None, None, None, None).await;
     assert_eq!(page.status, StatusCode::OK);
+
+    // Viewing the confirmation page must not consume the token.
+    let still_pending = call(
+        &app.app,
+        "GET",
+        &status_path,
+        None,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(still_pending.body["status"], "pending");
 
     let redeemed = call(&app.app, "POST", &path, None, None, None, None).await;
     assert_eq!(redeemed.status, StatusCode::SEE_OTHER);
@@ -577,6 +605,18 @@ async fn qr_pairing_is_single_use_and_can_target_a_device() {
         Some(format!("/viewer.html?host={host_id}").as_str())
     );
     let paired_token = redeemed.token.expect("paired session cookie");
+
+    let redeemed_status = call(
+        &app.app,
+        "GET",
+        &status_path,
+        None,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(redeemed_status.body["status"], "redeemed");
 
     let paired_session = call(
         &app.app,
@@ -593,6 +633,10 @@ async fn qr_pairing_is_single_use_and_can_target_a_device() {
     // Replaying the same token must not create another session.
     let replay = call(&app.app, "POST", &path, None, None, None, None).await;
     assert_eq!(replay.status, StatusCode::NOT_FOUND);
+
+    // Status is owner-only.
+    let anonymous_status = call(&app.app, "GET", &status_path, None, None, None, None).await;
+    assert_eq!(anonymous_status.status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

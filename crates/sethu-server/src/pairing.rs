@@ -32,6 +32,14 @@ struct Pairing {
     user_id: Uuid,
     host_id: Option<Uuid>,
     expires_at: i64,
+    redeemed: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairStatus {
+    Pending,
+    Redeemed,
+    Expired,
 }
 
 pub struct PairingStore {
@@ -56,6 +64,7 @@ impl PairingStore {
                 user_id,
                 host_id,
                 expires_at: now + ttl.as_secs() as i64,
+                redeemed: false,
             },
         );
         token
@@ -63,8 +72,20 @@ impl PairingStore {
 
     fn take(&self, token: &str) -> Option<Pairing> {
         let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let pairing = map.remove(token)?;
-        (pairing.expires_at > now_unix()).then_some(pairing)
+        let now = now_unix();
+        if map
+            .get(token)
+            .is_some_and(|pairing| pairing.expires_at <= now)
+        {
+            map.remove(token);
+            return None;
+        }
+        let pairing = map.get_mut(token)?;
+        if pairing.redeemed {
+            return None;
+        }
+        pairing.redeemed = true;
+        Some(pairing.clone())
     }
 
     /// Read without consuming, so link previews can fetch the confirmation page.
@@ -77,6 +98,23 @@ impl PairingStore {
         }
         Some(pairing)
     }
+
+    fn status(&self, token: &str, owner: Uuid) -> Option<PairStatus> {
+        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let pairing = map.get(token)?.clone();
+        if pairing.user_id != owner {
+            return None;
+        }
+        if pairing.expires_at <= now_unix() {
+            map.remove(token);
+            return Some(PairStatus::Expired);
+        }
+        Some(if pairing.redeemed {
+            PairStatus::Redeemed
+        } else {
+            PairStatus::Pending
+        })
+    }
 }
 
 impl Default for PairingStore {
@@ -88,6 +126,7 @@ impl Default for PairingStore {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/pair", post(create_pair))
+        .route("/api/pair/{token}", get(pair_status))
         .route("/pair/{token}", get(pair_page).post(redeem_pair))
 }
 
@@ -104,6 +143,13 @@ struct PairResponse {
     qr: String,
     expires_in: u64,
     target: String,
+    /// Lets the desktop poll whether the phone has completed pairing.
+    token: String,
+}
+
+#[derive(Serialize)]
+struct PairStatusView {
+    status: &'static str,
 }
 
 async fn create_pair(
@@ -142,6 +188,25 @@ async fn create_pair(
         target: host
             .map(|host| host.name)
             .unwrap_or_else(|| "this workspace".into()),
+        token,
+    }))
+}
+
+async fn pair_status(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(token): Path<String>,
+) -> Result<Json<PairStatusView>, AppError> {
+    let status = state
+        .pairings
+        .status(&token, user.user.id)
+        .ok_or_else(|| AppError::NotFound("pairing code not found".into()))?;
+    Ok(Json(PairStatusView {
+        status: match status {
+            PairStatus::Pending => "pending",
+            PairStatus::Redeemed => "redeemed",
+            PairStatus::Expired => "expired",
+        },
     }))
 }
 
@@ -150,6 +215,9 @@ async fn pair_page(State(state): State<AppState>, Path(token): Path<String>) -> 
         tracing::warn!("pairing token rejected");
         return pairing_error("This pairing link is invalid or has expired.");
     };
+    if pairing.redeemed {
+        return pairing_error("This pairing link has already been used.");
+    }
 
     let host = pairing
         .host_id
