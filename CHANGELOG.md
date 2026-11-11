@@ -4,6 +4,17 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] — 2026-11-11
+
+### Changed
+
+- The **in-app QR scanner** (sign-in, dashboard and Add device) is now shown
+  only on phones and tablets. Mac and Windows desktops still display QR codes
+  for a phone to scan, but no longer offer the scanner controls.
+- Detection covers iPhone/iPad (including iPadOS's desktop user agent), Android
+  phones/tablets and common mobile browsers; the scanner also refuses to open on
+  desktop if invoked directly.
+
 ## [0.7.0] — 2026-11-11
 
 ### Added
@@ -181,3 +192,4 @@ Initial public release.
 [0.5.2]: https://github.com/maker224/sethu/releases/tag/v0.5.2
 [0.6.0]: https://github.com/maker224/sethu/releases/tag/v0.6.0
 [0.7.0]: https://github.com/maker224/sethu/releases/tag/v0.7.0
+[0.7.1]: https://github.com/maker224/sethu/releases/tag/v0.7.1

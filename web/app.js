@@ -966,7 +966,30 @@ const scanWorkCanvas = document.createElement("canvas");
 let scanStream = null;
 let scanFrameRequest = null;
 
+function isMobileOrTablet() {
+  const ua = navigator.userAgent || "";
+  const data = navigator.userAgentData;
+  if (data && data.mobile) return true;
+  if (/android|iphone|ipod|ipad|tablet|silk|kindle|playbook|mobile/i.test(ua)) {
+    return true;
+  }
+  // iPadOS reports a Macintosh user agent but exposes touch points.
+  if (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return true;
+  return false;
+}
+
+function applyDeviceUi() {
+  const mobile = isMobileOrTablet();
+  document.querySelectorAll(".phone-only").forEach((element) => {
+    element.classList.toggle("hidden", !mobile);
+  });
+}
+
 function openScanDialog() {
+  if (!isMobileOrTablet()) {
+    toast("QR scanning is available on phones and tablets. Show the QR here and scan it with your phone.", "error");
+    return;
+  }
   $("#scan-status").textContent = window.isSecureContext
     ? "Point the camera at the QR code."
     : "Camera scanning needs HTTPS. Take a photo of the QR or paste the link.";
@@ -1117,6 +1140,7 @@ scanDialog.addEventListener("close", stopScanCamera);
 // ----- boot --------------------------------------------------------------
 
 async function boot() {
+  applyDeviceUi();
   try {
     const info = await loadSession();
     if (info.user) await enterDashboard();
