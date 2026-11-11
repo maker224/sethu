@@ -402,7 +402,14 @@ function buildHostCard(host) {
   remove.setAttribute("aria-label", `Remove ${host.name}`);
   remove.append(icon("i-trash"));
 
-  head.append(iconWrap, titles, remove);
+  const pair = el("button", "icon-btn");
+  pair.type = "button";
+  pair.dataset.action = "pair";
+  pair.title = "Pair a phone by QR";
+  pair.setAttribute("aria-label", `Pair a phone to ${host.name}`);
+  pair.append(icon("i-qr"));
+
+  head.append(iconWrap, titles, pair, remove);
 
   const metaRow = el("div", "host-meta");
   const target = el("p", "host-target", host.target);
@@ -438,6 +445,11 @@ $("#hosts-grid").addEventListener("click", async (event) => {
   if (!card) return;
   const host = state.hosts.find((item) => item.id === card.dataset.hostId);
   if (!host) return;
+
+  if (button.dataset.action === "pair") {
+    openPairDialog(host.id);
+    return;
+  }
 
   if (button.dataset.action === "test") {
     await runTest(host, card, button);
@@ -676,8 +688,7 @@ function renderFiles() {
 
 const shareDialog = $("#share-dialog");
 
-function openShareDialog(file) {
-  $("#share-file-name").textContent = `${file.name} · ${formatBytes(file.size)}`;
+function openShareDialog(file) {  $("#share-file-name").textContent = `${file.name} · ${formatBytes(file.size)}`;
   $("#share-link").value = `${location.origin}/api/files/${encodeURIComponent(file.id)}/download`;
 
   const devices = $("#share-android-devices");
@@ -875,6 +886,77 @@ dropzone.addEventListener("drop", (event) => {
 
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("drop", (event) => event.preventDefault());
+
+// ----- QR pairing --------------------------------------------------------
+
+const pairDialog = $("#pair-dialog");
+let pairTimer = null;
+
+function openPairDialog(hostId = null) {
+  window.clearInterval(pairTimer);
+  $("#pair-target").textContent = "Generating a one-time code…";
+  $("#pair-qr").removeAttribute("src");
+  $("#pair-url").value = "";
+  $("#pair-expiry").textContent = "";
+
+  if (typeof pairDialog.showModal === "function") pairDialog.showModal();
+  else pairDialog.setAttribute("open", "");
+
+  api("/api/pair", {
+    method: "POST",
+    body: hostId ? { host_id: hostId } : {},
+  })
+    .then((data) => {
+      $("#pair-qr").src = data.qr;
+      $("#pair-url").value = data.url;
+      $("#pair-target").textContent = `Opens ${data.target} on the other device.`;
+      let remaining = Number(data.expires_in) || 120;
+
+      const update = () => {
+        if (remaining <= 0) {
+          $("#pair-expiry").textContent =
+            "Code expired — close and reopen this window to generate a new one.";
+          window.clearInterval(pairTimer);
+          return;
+        }
+        const minutes = Math.floor(remaining / 60);
+        const seconds = String(remaining % 60).padStart(2, "0");
+        $("#pair-expiry").textContent = `Code expires in ${minutes}:${seconds}.`;
+        remaining -= 1;
+      };
+
+      update();
+      pairTimer = window.setInterval(update, 1000);
+    })
+    .catch((error) => {
+      toast(error.message, "error");
+      pairDialog.close();
+    });
+}
+
+$("#pair-mobile").addEventListener("click", () => openPairDialog());
+
+pairDialog.addEventListener("close", () => {
+  window.clearInterval(pairTimer);
+  $("#pair-qr").removeAttribute("src");
+  $("#pair-url").value = "";
+});
+
+$("#copy-pair-url").addEventListener("click", async () => {
+  const input = $("#pair-url");
+  try {
+    await navigator.clipboard.writeText(input.value);
+    toast("Pairing link copied.", "success");
+  } catch {
+    input.select();
+    try {
+      document.execCommand("copy");
+      toast("Pairing link copied.", "success");
+    } catch {
+      toast("Could not copy — select the link manually.", "error");
+    }
+  }
+});
 
 // ----- boot --------------------------------------------------------------
 

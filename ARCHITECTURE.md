@@ -238,6 +238,25 @@ and the server operator can read stored files. The frontend exposes it as the
   and the login/registration endpoints. Origin/Host checks still apply. Intended
   for a single-user LAN/VPN deployment; never expose it directly to the internet.
 
+## QR pairing
+
+`pairing.rs` implements a short-lived session handoff:
+
+1. An authenticated browser calls `POST /api/pair` (optionally with `host_id`).
+2. The server stores a 24-byte token in memory with the owner, optional host and
+   expiry (`SETHU_PAIR_TTL_SECONDS`, default 120 s), and renders an SVG QR code
+   as a `data:` URI.
+3. The QR encodes `{public_url}/pair/{token}`. Without `SETHU_PUBLIC_URL`, the
+   server uses `X-Forwarded-*` (when trusted) or `Host`, and replaces
+   `localhost`/`127.0.0.1` with the host's LAN IP so a phone can reach it.
+4. Scanning opens `GET /pair/{token}`. The token is removed before use, a
+   session is created, the cookie is set and the browser is redirected to `/`
+   or `/viewer.html?host=…`. Replaying the token returns 404.
+
+The token is a credential: it is single-use, expires quickly, and is only
+created by an authenticated (or open-mode) browser. It is held in memory, so a
+restart invalidates outstanding codes.
+
 ## Frontend
 
 Plain ES modules and one stylesheet. No bundler, no framework, no build step.

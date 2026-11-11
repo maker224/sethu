@@ -12,7 +12,7 @@
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css?v=0.5.2" />
+    <link rel="stylesheet" href="/styles.css?v=0.6.0" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -91,6 +91,12 @@
         <circle cx="6" cy="12" r="3" />
         <circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+      </symbol>
+      <symbol id="i-qr" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <path d="M14 14h3v3h-3zM20 14h1M14 20h3M20 17v4" />
       </symbol>
       <symbol id="i-alert" viewBox="0 0 24 24">
         <path d="M12 3 2.5 20h19Z" />
@@ -193,10 +199,16 @@
             <h2 id="dashboard-heading">Your devices</h2>
             <p id="dashboard-note" class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
           </div>
-          <button id="add-host" class="btn btn-primary" type="button">
-            <svg class="icon"><use href="#i-plus" /></svg>
-            <span class="btn-label">Add device</span>
-          </button>
+          <div class="dashboard-actions">
+            <button id="pair-mobile" class="btn btn-secondary" type="button">
+              <svg class="icon"><use href="#i-qr" /></svg>
+              <span class="btn-label">Pair a phone</span>
+            </button>
+            <button id="add-host" class="btn btn-primary" type="button">
+              <svg class="icon"><use href="#i-plus" /></svg>
+              <span class="btn-label">Add device</span>
+            </button>
+          </div>
         </div>
 
         <div class="workspace-tabs" role="tablist" aria-label="Workspace">
@@ -436,13 +448,48 @@
       </label>
     </template>
 
+    <dialog id="pair-dialog" class="dialog pair-dialog" aria-labelledby="pair-title">
+      <form method="dialog">
+        <div class="dialog-head">
+          <div>
+            <h2 id="pair-title">Connect with a QR code</h2>
+            <p id="pair-target" class="section-note">Opening this workspace on another device.</p>
+          </div>
+          <button class="icon-btn" value="cancel" aria-label="Close">
+            <svg class="icon"><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="dialog-body pair-body">
+          <p class="hint">
+            Scan this with the camera on your iPhone, iPad or Android device. It signs
+            that device into this workspace — no URL or username typing.
+          </p>
+          <div class="qr-frame">
+            <img id="pair-qr" alt="QR code to connect another device" width="240" height="240" />
+          </div>
+          <div class="share-link-row">
+            <input id="pair-url" class="share-link" readonly aria-label="Pairing URL" />
+            <button id="copy-pair-url" class="btn btn-secondary" type="button">Copy</button>
+          </div>
+          <p id="pair-expiry" class="hint"></p>
+          <p class="hint">
+            Only scan this on a device you control. The link grants access to this
+            workspace and works once, for a short time.
+          </p>
+        </div>
+        <div class="dialog-foot">
+          <button class="btn btn-secondary" value="cancel">Done</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
     <noscript>
       <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
     </noscript>
 
-    <script src="/boot-guard.js?v=0.5.2"></script>
-    <script type="module" src="/app.js?v=0.5.2"></script>
+    <script src="/boot-guard.js?v=0.6.0"></script>
+    <script type="module" src="/app.js?v=0.6.0"></script>
   </body>
 </html>

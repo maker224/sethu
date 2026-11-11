@@ -7,6 +7,7 @@ pub mod auth;
 pub mod config;
 pub mod error;
 pub mod files;
+pub mod pairing;
 pub mod rate_limit;
 pub mod security;
 pub mod state;
@@ -27,6 +28,7 @@ pub fn app(state: AppState) -> Router {
     Router::new()
         .merge(api::router())
         .merge(files::router())
+        .merge(pairing::router())
         .merge(ws::router())
         .fallback(web::serve)
         .with_state(state.clone())

@@ -4,7 +4,7 @@ use anyhow::Context;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
-use crate::{config::Config, rate_limit::RateLimiter, store::Store};
+use crate::{config::Config, pairing::PairingStore, rate_limit::RateLimiter, store::Store};
 
 /// Shared application state. Cheap to clone (`Arc` inside).
 #[derive(Clone)]
@@ -18,6 +18,8 @@ pub struct AppState {
     pub ws_slots: Arc<Semaphore>,
     /// Workspace used when `SETHU_AUTH=open` removes the sign-in screen.
     pub local_user: Option<Uuid>,
+    /// Short-lived QR pairing codes.
+    pub pairings: Arc<PairingStore>,
 }
 
 impl AppState {
@@ -52,6 +54,7 @@ impl AppState {
             limiter: Arc::new(RateLimiter::new()),
             ws_slots,
             local_user,
+            pairings: Arc::new(PairingStore::new()),
         })
     }
 }

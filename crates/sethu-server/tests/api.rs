@@ -37,6 +37,7 @@ fn harness() -> Harness {
 struct Reply {
     status: StatusCode,
     token: Option<String>,
+    location: Option<String>,
     body: Value,
 }
 
@@ -78,6 +79,11 @@ async fn call(
 
     let response = app.clone().oneshot(request).await.expect("response");
     let status = response.status();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
     let token = response
         .headers()
         .get(header::SET_COOKIE)
@@ -100,6 +106,7 @@ async fn call(
     Reply {
         status,
         token,
+        location,
         body,
     }
 }
@@ -487,6 +494,102 @@ async fn username_only_login_creates_and_reuses_workspace() {
     assert_eq!(created.status, StatusCode::CREATED);
 
     let _ = std::fs::remove_dir_all(dir);
+}
+
+#[tokio::test]
+async fn qr_pairing_is_single_use_and_can_target_a_device() {
+    let app = harness();
+    let register = call(
+        &app.app,
+        "POST",
+        "/api/auth/register",
+        Some(json!({"email": "pair@example.com", "password": "pairing-password"})),
+        None,
+        None,
+        None,
+    )
+    .await;
+    let cookie = register.token.expect("cookie");
+    let session = call(
+        &app.app,
+        "GET",
+        "/api/session",
+        None,
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    let csrf = session.body["csrf"].as_str().expect("csrf").to_string();
+
+    let host = call(
+        &app.app,
+        "POST",
+        "/api/hosts",
+        Some(json!({"name": "Studio Mac", "kind": "macos", "target": "mac.local"})),
+        Some(&cookie),
+        Some(&csrf),
+        None,
+    )
+    .await;
+    let host_id = host.body["id"].as_str().expect("host id").to_string();
+
+    // Pairing needs CSRF like every other authenticated mutation.
+    let no_csrf = call(
+        &app.app,
+        "POST",
+        "/api/pair",
+        Some(json!({})),
+        Some(&cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(no_csrf.status, StatusCode::FORBIDDEN);
+
+    let pair = call(
+        &app.app,
+        "POST",
+        "/api/pair",
+        Some(json!({"host_id": host_id})),
+        Some(&cookie),
+        Some(&csrf),
+        None,
+    )
+    .await;
+    assert_eq!(pair.status, StatusCode::OK);
+    assert_eq!(pair.body["target"], "Studio Mac");
+    assert!(pair.body["qr"]
+        .as_str()
+        .expect("qr")
+        .starts_with("data:image/svg+xml;base64,"));
+    let url = reqwest::Url::parse(pair.body["url"].as_str().expect("url")).expect("pair url");
+    assert_eq!(url.host_str(), Some("sethu.test"));
+    let path = url.path().to_string();
+
+    let redeemed = call(&app.app, "GET", &path, None, None, None, None).await;
+    assert_eq!(redeemed.status, StatusCode::SEE_OTHER);
+    assert_eq!(
+        redeemed.location.as_deref(),
+        Some(format!("/viewer.html?host={host_id}").as_str())
+    );
+    let paired_token = redeemed.token.expect("paired session cookie");
+
+    let paired_session = call(
+        &app.app,
+        "GET",
+        "/api/session",
+        None,
+        Some(&paired_token),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(paired_session.body["user"]["email"], "pair@example.com");
+
+    // Scanning / replaying the same token must not create another session.
+    let replay = call(&app.app, "GET", &path, None, None, None, None).await;
+    assert_eq!(replay.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

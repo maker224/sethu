@@ -85,6 +85,21 @@ During development, serve the frontend from disk so edits are instant:
 SETHU_WEB_DIR=./web RUST_LOG=sethu_server=debug cargo run
 ```
 
+### Connect by QR code
+
+On the MacBook/Windows browser, click **Pair a phone** (or the QR icon on a
+device card). Scan the code with the Camera app on an iPhone, iPad or Android
+device:
+
+- workspace pairing signs the phone into the same workspace;
+- device pairing opens that Mac/Windows/iPhone/Android viewer directly.
+
+The code is single-use and expires after 2 minutes
+(`SETHU_PAIR_TTL_SECONDS`). Scanning it grants a session, so only show it to a
+device you control. If the desktop is on `localhost`, Sethu substitutes the
+Mac's LAN IP so the phone can reach it; otherwise set `SETHU_PUBLIC_URL` to the
+address phones use.
+
 ### Docker
 
 ```bash
@@ -301,6 +316,7 @@ See `.env.example`.
 | `SETHU_COOKIE_SECURE` | auto (`true` with an `https://` public URL) | Marks the session cookie `Secure` |
 | `SETHU_AUTH` | `required` | `required`, `username` (no password) or `open` (no sign-in; trusted LAN only) |
 | `SETHU_MAX_FILE_BYTES` | `2147483648` | Maximum size of one uploaded file |
+| `SETHU_PAIR_TTL_SECONDS` | `120` | QR pairing code lifetime (30–600) |
 | `SETHU_ALLOW_REGISTRATION` | `true` | Set `false` after creating your account |
 | `SETHU_SESSION_TTL_HOURS` | `168` | Login lifetime |
 | `SETHU_IOS_FPS` | `10` | Default iPhone/iPad frame rate (1–15) |
@@ -377,6 +393,8 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `GET` | `/api/files/{id}/download` | Streamed attachment download |
 | `POST` | `/api/files/{id}/send` | Push a file to an Android device's Downloads (`host_id`) |
 | `DELETE` | `/api/files/{id}` | Delete a file and its contents |
+| `POST` | `/api/pair` | Create a short-lived QR pairing link (`host_id` optional) |
+| `GET` | `/pair/{token}` | Redeem the pairing link and set a session |
 | `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |
 | `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands (iPhone/iPad) |
 | `GET` (WS) | `/ws/android/{id}` | PNG frames + JSON commands (Android) |
@@ -409,6 +427,9 @@ WebSocket details and the iPhone/Android message schemas are documented in
 - **Uploads** are plain files on disk, served as attachments. Sethu does not
   scan for malware; treat uploads as untrusted and keep the data directory
   private (mode `0600`).
+- **QR pairing grants a session.** A pairing code is a short-lived credential:
+  anyone who scans it (or copies the link) gets access to that workspace or
+  device. Keep the screen private and regenerate if it leaks.
 - **Hardened headers**: CSP, `X-Frame-Options: DENY`, `nosniff`, no-referrer,
   restrictive permissions policy.
 - The data file is written atomically with mode `0600`; back it up and protect it.

@@ -685,6 +685,13 @@ select:focus-visible {
   margin-bottom: 30px;
 }
 
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .dashboard-head h2 {
   margin: 12px 0 6px;
   font-size: clamp(1.7rem, 3vw, 2.25rem);
@@ -1459,6 +1466,40 @@ select:focus-visible {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 11px;
+}
+
+/* QR pairing dialog. */
+.pair-dialog {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.pair-body {
+  text-align: center;
+}
+
+.pair-body .hint {
+  max-width: 40ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.qr-frame {
+  width: fit-content;
+  margin: 18px auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.qr-frame img {
+  display: block;
+  width: 240px;
+  height: 240px;
+}
+
+.pair-body .share-link-row {
+  text-align: left;
 }
 
 /* ---------- toasts ---------- */

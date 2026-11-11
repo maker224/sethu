@@ -4,6 +4,18 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-11-11
+
+### Added
+
+- **QR pairing**: an authenticated desktop browser (MacBook/Windows) can show a
+  short-lived QR code. Scanning it with an iPhone, iPad or Android camera signs
+  that device into the same workspace, or opens a specific device viewer.
+- `POST /api/pair` + `GET /pair/{token}` with single-use, 2-minute tokens,
+  server-side SVG QR generation, LAN-IP substitution for localhost desktops and
+  a per-device QR action on cards.
+- `SETHU_PAIR_TTL_SECONDS` configuration and pairing tests.
+
 ## [0.5.2] — 2026-11-10
 
 ### Fixed
@@ -154,3 +166,4 @@ Initial public release.
 [0.5.0]: https://github.com/maker224/sethu/releases/tag/v0.5.0
 [0.5.1]: https://github.com/maker224/sethu/releases/tag/v0.5.1
 [0.5.2]: https://github.com/maker224/sethu/releases/tag/v0.5.2
+[0.6.0]: https://github.com/maker224/sethu/releases/tag/v0.6.0

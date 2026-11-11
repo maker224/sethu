@@ -52,6 +52,8 @@ pub struct Config {
     pub username_only: bool,
     /// Maximum size of a single uploaded file, in bytes.
     pub max_file_bytes: u64,
+    /// Lifetime of a QR pairing code.
+    pub pair_ttl: Duration,
 }
 
 impl Config {
@@ -134,6 +136,7 @@ impl Config {
             open_access,
             username_only,
             max_file_bytes: env_u64("SETHU_MAX_FILE_BYTES", 2 * 1024 * 1024 * 1024).max(1),
+            pair_ttl: Duration::from_secs(env_u64("SETHU_PAIR_TTL_SECONDS", 120).clamp(30, 600)),
         })
     }
 
@@ -160,6 +163,7 @@ impl Config {
             open_access: false,
             username_only: false,
             max_file_bytes: 10 * 1024 * 1024,
+            pair_ttl: Duration::from_secs(120),
         }
     }
 
