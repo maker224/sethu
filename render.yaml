@@ -1,0 +1,29 @@
+# Free Render deployment (demo).
+#
+# Render builds the Dockerfile, provides HTTPS and WebSockets, and injects
+# RENDER_EXTERNAL_URL + PORT. Sethu reads both automatically.
+#
+# The free plan has an ephemeral filesystem and sleeps after inactivity, so
+# devices/files/accounts in ./data are lost on restart. For persistence use a
+# paid disk or a host with volumes (Fly.io, Railway, a VPS).
+
+services:
+  - type: web
+    name: sethu
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SETHU_AUTH
+        value: username
+      - key: SETHU_COOKIE_SECURE
+        value: "true"
+      - key: SETHU_TRUST_PROXY
+        value: "true"
+      - key: SETHU_MAX_FILE_BYTES
+        value: "524288000"
+      - key: RUST_LOG
+        value: sethu_server=info

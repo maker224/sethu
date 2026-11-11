@@ -1,6 +1,6 @@
 [Unit]
 Description=Sethu remote access gateway for Mac and iPhone
-Documentation=https://github.com/your-org/sethu
+Documentation=https://github.com/maker224/sethu
 After=network-online.target
 Wants=network-online.target
 

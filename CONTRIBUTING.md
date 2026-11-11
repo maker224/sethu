@@ -12,7 +12,7 @@ boring to build; please keep it that way.
 ## Development setup
 
 ```bash
-git clone https://github.com/your-org/sethu.git
+git clone https://github.com/maker224/sethu.git
 cd sethu
 cargo test --workspace
 SETHU_WEB_DIR=./web RUST_LOG=sethu_server=debug cargo run

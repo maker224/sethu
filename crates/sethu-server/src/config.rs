@@ -56,7 +56,8 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        let bind = env("SETHU_BIND", "0.0.0.0:8080")
+        let default_bind = format!("0.0.0.0:{}", env("PORT", "8080"));
+        let bind = env("SETHU_BIND", &default_bind)
             .parse()
             .context("SETHU_BIND must look like 0.0.0.0:8080")?;
 
@@ -73,7 +74,13 @@ impl Config {
         let public_url = std::env::var("SETHU_PUBLIC_URL")
             .ok()
             .filter(|v| !v.trim().is_empty())
-            .map(|v| v.trim_end_matches('/').to_string());
+            .or_else(|| {
+                // Render (and similar PaaS) expose the canonical URL.
+                std::env::var("RENDER_EXTERNAL_URL")
+                    .ok()
+                    .filter(|v| !v.trim().is_empty())
+            })
+            .map(|v| v.trim().trim_end_matches('/').to_string());
 
         if let Some(url) = &public_url {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
@@ -115,7 +122,10 @@ impl Config {
             adb_path: env("SETHU_ADB_PATH", "adb"),
             adb_timeout: Duration::from_secs(env_u64("SETHU_ADB_TIMEOUT_SECONDS", 10).max(1)),
             allowed_origins,
-            trust_proxy: env_bool("SETHU_TRUST_PROXY", false),
+            trust_proxy: env_bool(
+                "SETHU_TRUST_PROXY",
+                std::env::var("RENDER_EXTERNAL_URL").is_ok(),
+            ),
             wda_timeout: Duration::from_secs(env_u64("SETHU_WDA_TIMEOUT_SECONDS", 6).max(1)),
             vnc_connect_timeout: Duration::from_secs(
                 env_u64("SETHU_VNC_CONNECT_TIMEOUT_SECONDS", 10).max(1),

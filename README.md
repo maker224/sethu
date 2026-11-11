@@ -49,7 +49,7 @@ Requirements: Rust 1.82+ and one or more reachable devices. For Android
 mirroring, install Android platform-tools (`adb`) on the Sethu host.
 
 ```bash
-git clone https://github.com/your-org/sethu.git
+git clone https://github.com/maker224/sethu.git
 cd sethu
 cargo run --release
 ```
@@ -95,6 +95,26 @@ docker compose up -d --build
 Data persists in the `sethu-data` volume. Put a TLS-terminating proxy in front
 before exposing it, and read [Security](SECURITY.md) first. For an offline
 install, mount a vendored noVNC directory and set `SETHU_VENDOR_DIR` to it.
+
+### Deploy on a free server (Render)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/maker224/sethu)
+
+`render.yaml` provisions a free Docker web service with HTTPS, WebSockets and
+username-only sign-in. Render injects `PORT` and `RENDER_EXTERNAL_URL`; Sethu
+uses both automatically, so no extra URL configuration is needed.
+
+Free-tier caveats:
+
+- The instance sleeps after inactivity and cold-starts on the next request.
+- The filesystem is **ephemeral**: accounts, devices and uploaded files reset on
+  restart/deploy. Use a paid disk, Fly.io with a volume, or a VPS for real data.
+- There is no adb/WebDriverAgent access from the cloud host, so device mirroring
+  needs a self-hosted instance on your LAN. File sharing and the UI work fully.
+
+For a persistent deployment, use the supplied `Dockerfile` on Fly.io (with a
+volume mounted at `/data`), Railway, or a small VPS behind Caddy; keep
+`SETHU_DATA_DIR` on persistent storage.
 
 ---
 
