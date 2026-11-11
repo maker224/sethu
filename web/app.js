@@ -344,6 +344,7 @@ function renderHosts() {
   const filterEmpty = $("#filter-empty");
   grid.replaceChildren();
   syncFilterTabs();
+  applyDeviceUi();
 
   filters.classList.toggle("hidden", state.hosts.length === 0);
   if (state.hosts.length === 0) {
@@ -362,6 +363,7 @@ function renderHosts() {
   for (const host of visible) {
     grid.append(buildHostCard(host));
   }
+  applyDeviceUi();
 }
 
 function setFilter(filter) {
@@ -402,7 +404,7 @@ function buildHostCard(host) {
   remove.setAttribute("aria-label", `Remove ${host.name}`);
   remove.append(icon("i-trash"));
 
-  const pair = el("button", "icon-btn");
+  const pair = el("button", "icon-btn desktop-only");
   pair.type = "button";
   pair.dataset.action = "pair";
   pair.title = "Pair a phone by QR";
@@ -893,6 +895,13 @@ const pairDialog = $("#pair-dialog");
 let pairTimer = null;
 
 function openPairDialog(hostId = null) {
+  if (isMobileOrTablet()) {
+    toast(
+      "On a phone or tablet, use Scan QR to scan a code shown on your Mac or Windows PC.",
+      "info",
+    );
+    return;
+  }
   window.clearInterval(pairTimer);
   $("#pair-target").textContent = "Generating a one-time code…";
   $("#pair-qr").removeAttribute("src");
@@ -982,6 +991,9 @@ function applyDeviceUi() {
   const mobile = isMobileOrTablet();
   document.querySelectorAll(".phone-only").forEach((element) => {
     element.classList.toggle("hidden", !mobile);
+  });
+  document.querySelectorAll(".desktop-only").forEach((element) => {
+    element.classList.toggle("hidden", mobile);
   });
 }
 
@@ -1107,6 +1119,7 @@ function handleScanResult(raw) {
 
 $("#scan-auth").addEventListener("click", openScanDialog);
 $("#scan-qr").addEventListener("click", openScanDialog);
+$("#empty-scan").addEventListener("click", openScanDialog);
 $("#host-scan").addEventListener("click", () => {
   dialog.close();
   openScanDialog();

@@ -8,12 +8,12 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- The **in-app QR scanner** (sign-in, dashboard and Add device) is now shown
-  only on phones and tablets. Mac and Windows desktops still display QR codes
-  for a phone to scan, but no longer offer the scanner controls.
+- The UI is direction-aware: **desktops** (Mac/Windows) show QR codes and hide
+  the in-app scanner; **phones/tablets** show Scan QR and hide the QR-display
+  controls (“Pair a phone” and the device-card QR icon).
 - Detection covers iPhone/iPad (including iPadOS's desktop user agent), Android
   phones/tablets and common mobile browsers; the scanner also refuses to open on
-  desktop if invoked directly.
+  desktop if invoked directly, and QR display is refused on mobile.
 
 ## [0.7.0] — 2026-11-11
 

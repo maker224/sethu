@@ -107,8 +107,10 @@ grants a session, so only show it to a device you control. If the desktop is on
 otherwise set `SETHU_PUBLIC_URL` to the address phones use.
 
 The in-app scanner is intentionally **phone/tablet only**. Mac and Windows
-desktops still show the QR code, but don't offer a scanner — use the phone's
-camera or the phone's Sethu app to scan it.
+desktops show the QR code and hide the scanner controls; phones and tablets show
+**Scan QR** and hide the “Pair a phone” QR-display controls. On plain HTTP, the
+phone's browser cannot use the camera API, so take/choose a photo of the QR or
+paste the link (or use the phone's Camera app, which needs no permission).
 
 ### Docker
 
