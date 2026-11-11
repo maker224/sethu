@@ -103,7 +103,7 @@ pub async fn hardening_headers(
     set(header::REFERRER_POLICY, "no-referrer");
     set(
         header::HeaderName::from_static("permissions-policy"),
-        "camera=(), microphone=(), geolocation=(), payment=()",
+        "camera=(self), microphone=(), geolocation=(), payment=()",
     );
     set(
         header::HeaderName::from_static("cross-origin-opener-policy"),

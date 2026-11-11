@@ -53,8 +53,9 @@ authentication layer.
   username as a label, not a credential. Use only on a trusted LAN/VPN.
 - **QR pairing codes are credentials.** A pair code grants a full session to
   whoever redeems it. Codes are 24 random bytes, single-use, kept in memory and
-  expire after 2 minutes. Treat the QR screen like a password: don't show it on
-  a shared display, and regenerate if it may have leaked.
+  expire after 2 minutes. The confirmation step prevents link previews from
+  consuming a code, but anyone who can see the QR can still use it. Don't show
+  it on a shared display, and regenerate if it may have leaked.
 - **Open access is a deliberate downgrade.** `SETHU_AUTH=open` removes
   authentication and CSRF; everyone who reaches the port controls the first
   account's devices and files. Only run it on a trusted LAN/VPN or behind an

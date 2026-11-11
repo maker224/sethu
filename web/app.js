@@ -958,6 +958,162 @@ $("#copy-pair-url").addEventListener("click", async () => {
   }
 });
 
+// ----- in-app QR scanner ------------------------------------------------
+
+const scanDialog = $("#scan-dialog");
+const scanVideo = $("#scan-video");
+const scanWorkCanvas = document.createElement("canvas");
+let scanStream = null;
+let scanFrameRequest = null;
+
+function openScanDialog() {
+  $("#scan-status").textContent = window.isSecureContext
+    ? "Point the camera at the QR code."
+    : "Camera scanning needs HTTPS. Take a photo of the QR or paste the link.";
+  $("#scan-manual").classList.add("hidden");
+  $("#scan-url").value = "";
+  $("#scan-photo").value = "";
+
+  if (typeof scanDialog.showModal === "function") scanDialog.showModal();
+  else scanDialog.setAttribute("open", "");
+
+  startScanCamera();
+}
+
+async function startScanCamera() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    $("#scan-live-wrap").classList.add("hidden");
+    return;
+  }
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: "environment" } },
+    });
+    scanVideo.srcObject = scanStream;
+    $("#scan-live-wrap").classList.remove("hidden");
+    await scanVideo.play();
+    scanLoop();
+  } catch {
+    $("#scan-live-wrap").classList.add("hidden");
+    $("#scan-status").textContent =
+      "Camera unavailable. Take a photo of the QR or paste the link.";
+  }
+}
+
+function stopScanCamera() {
+  if (scanFrameRequest) window.cancelAnimationFrame(scanFrameRequest);
+  scanFrameRequest = null;
+  if (scanStream) {
+    for (const track of scanStream.getTracks()) track.stop();
+    scanStream = null;
+  }
+  scanVideo.srcObject = null;
+}
+
+function scanLoop() {
+  if (!scanDialog.open) return;
+  if (window.jsQR && scanVideo.readyState >= 2 && scanVideo.videoWidth > 0) {
+    scanWorkCanvas.width = scanVideo.videoWidth;
+    scanWorkCanvas.height = scanVideo.videoHeight;
+    const context = scanWorkCanvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(scanVideo, 0, 0);
+    const image = context.getImageData(0, 0, scanWorkCanvas.width, scanWorkCanvas.height);
+    const code = window.jsQR(image.data, image.width, image.height, {
+      inversionAttempts: "dontInvert",
+    });
+    if (code && code.data) {
+      handleScanResult(code.data);
+      return;
+    }
+  }
+  scanFrameRequest = window.requestAnimationFrame(scanLoop);
+}
+
+async function scanPhoto(file) {
+  if (!window.jsQR) {
+    $("#scan-status").textContent = "The QR decoder did not load. Reload and try again.";
+    return;
+  }
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) {
+    $("#scan-status").textContent = "That image could not be read. Try another photo.";
+    return;
+  }
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  scanWorkCanvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  scanWorkCanvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = scanWorkCanvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(bitmap, 0, 0, scanWorkCanvas.width, scanWorkCanvas.height);
+  bitmap.close();
+
+  const image = context.getImageData(0, 0, scanWorkCanvas.width, scanWorkCanvas.height);
+  const code = window.jsQR(image.data, image.width, image.height, {
+    inversionAttempts: "attemptBoth",
+  });
+  if (!code || !code.data) {
+    $("#scan-status").textContent =
+      "No QR code found. Make sure the whole code is visible and well lit.";
+    return;
+  }
+  handleScanResult(code.data);
+}
+
+function handleScanResult(raw) {
+  let url;
+  try {
+    url = new URL(String(raw).trim());
+  } catch {
+    $("#scan-status").textContent = "That QR code does not contain a link.";
+    return;
+  }
+  if (!["http:", "https:"].includes(url.protocol) || !url.pathname.startsWith("/pair/")) {
+    $("#scan-status").textContent = "That is not a Sethu pairing code.";
+    return;
+  }
+  if (
+    url.origin !== location.origin &&
+    !window.confirm(`This code opens ${url.origin}. Continue?`)
+  ) {
+    return;
+  }
+  stopScanCamera();
+  scanDialog.close();
+  window.location.href = url.href;
+}
+
+$("#scan-auth").addEventListener("click", openScanDialog);
+$("#scan-qr").addEventListener("click", openScanDialog);
+$("#host-scan").addEventListener("click", () => {
+  dialog.close();
+  openScanDialog();
+});
+
+$("#scan-photo").addEventListener("change", () => {
+  const file = $("#scan-photo").files?.[0];
+  if (file) scanPhoto(file);
+});
+
+$("#scan-paste-toggle").addEventListener("click", () => {
+  $("#scan-manual").classList.toggle("hidden");
+  $("#scan-url").focus();
+});
+
+$("#scan-go").addEventListener("click", () => {
+  const value = $("#scan-url").value.trim();
+  if (value) handleScanResult(value);
+});
+
+$("#scan-url").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    const value = $("#scan-url").value.trim();
+    if (value) handleScanResult(value);
+  }
+});
+
+scanDialog.addEventListener("close", stopScanCamera);
+
 // ----- boot --------------------------------------------------------------
 
 async function boot() {

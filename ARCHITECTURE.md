@@ -249,9 +249,14 @@ and the server operator can read stored files. The frontend exposes it as the
 3. The QR encodes `{public_url}/pair/{token}`. Without `SETHU_PUBLIC_URL`, the
    server uses `X-Forwarded-*` (when trusted) or `Host`, and replaces
    `localhost`/`127.0.0.1` with the host's LAN IP so a phone can reach it.
-4. Scanning opens `GET /pair/{token}`. The token is removed before use, a
-   session is created, the cookie is set and the browser is redirected to `/`
-   or `/viewer.html?host=…`. Replaying the token returns 404.
+4. Opening the link shows a confirmation page (GET). Link previews can fetch
+   this without consuming the token. The page's `pair.js` auto-submits, the
+   POST consumes the token, creates a session, sets the cookie and redirects to
+   `/` or `/viewer.html?host=…`. Replaying the token returns 404.
+
+The phone can also scan inside the app: jsQR decodes the camera stream on HTTPS,
+or a photo/pasted URL on plain HTTP. Camera access is blocked by browsers on
+insecure LAN origins, which is why the photo/paste fallbacks exist.
 
 The token is a credential: it is single-use, expires quickly, and is only
 created by an authenticated (or open-mode) browser. It is held in memory, so a

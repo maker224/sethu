@@ -88,17 +88,23 @@ SETHU_WEB_DIR=./web RUST_LOG=sethu_server=debug cargo run
 ### Connect by QR code
 
 On the MacBook/Windows browser, click **Pair a phone** (or the QR icon on a
-device card). Scan the code with the Camera app on an iPhone, iPad or Android
-device:
+device card). Scan the code:
 
-- workspace pairing signs the phone into the same workspace;
-- device pairing opens that Mac/Windows/iPhone/Android viewer directly.
+- with the phone's Camera app, or
+- inside Sethu on the phone: **Scan a QR code instead** (sign-in screen) or
+  **Scan QR** (dashboard) — live camera over HTTPS, or take/choose a photo on a
+  plain-HTTP LAN address, or paste the link.
+
+A workspace code signs the phone into the same workspace. A **device card's QR**
+opens that Mac/Windows/iPhone/Android viewer directly — use that when you want
+to connect to a machine, rather than just signing in.
 
 The code is single-use and expires after 2 minutes
-(`SETHU_PAIR_TTL_SECONDS`). Scanning it grants a session, so only show it to a
-device you control. If the desktop is on `localhost`, Sethu substitutes the
-Mac's LAN IP so the phone can reach it; otherwise set `SETHU_PUBLIC_URL` to the
-address phones use.
+(`SETHU_PAIR_TTL_SECONDS`). The phone first sees a confirmation page and the code
+is only consumed after it continues, so link previews can't burn it. Scanning
+grants a session, so only show it to a device you control. If the desktop is on
+`localhost`, Sethu substitutes the Mac's LAN IP so the phone can reach it;
+otherwise set `SETHU_PUBLIC_URL` to the address phones use.
 
 ### Docker
 
@@ -394,7 +400,8 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `POST` | `/api/files/{id}/send` | Push a file to an Android device's Downloads (`host_id`) |
 | `DELETE` | `/api/files/{id}` | Delete a file and its contents |
 | `POST` | `/api/pair` | Create a short-lived QR pairing link (`host_id` optional) |
-| `GET` | `/pair/{token}` | Redeem the pairing link and set a session |
+| `GET` | `/pair/{token}` | Confirmation page (link previews can't consume the token) |
+| `POST` | `/pair/{token}` | Redeem the code and set a session |
 | `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |
 | `GET` (WS) | `/ws/ios/{id}` | PNG frames + JSON commands (iPhone/iPad) |
 | `GET` (WS) | `/ws/android/{id}` | PNG frames + JSON commands (Android) |

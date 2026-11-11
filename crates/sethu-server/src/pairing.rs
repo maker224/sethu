@@ -27,6 +27,7 @@ use crate::{
     util::{hex, now_unix, random_bytes},
 };
 
+#[derive(Clone)]
 struct Pairing {
     user_id: Uuid,
     host_id: Option<Uuid>,
@@ -65,6 +66,17 @@ impl PairingStore {
         let pairing = map.remove(token)?;
         (pairing.expires_at > now_unix()).then_some(pairing)
     }
+
+    /// Read without consuming, so link previews can fetch the confirmation page.
+    fn get(&self, token: &str) -> Option<Pairing> {
+        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let pairing = map.get(token)?.clone();
+        if pairing.expires_at <= now_unix() {
+            map.remove(token);
+            return None;
+        }
+        Some(pairing)
+    }
 }
 
 impl Default for PairingStore {
@@ -76,7 +88,7 @@ impl Default for PairingStore {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/pair", post(create_pair))
-        .route("/pair/{token}", get(redeem_pair))
+        .route("/pair/{token}", get(pair_page).post(redeem_pair))
 }
 
 #[derive(Deserialize)]
@@ -133,8 +145,55 @@ async fn create_pair(
     }))
 }
 
+async fn pair_page(State(state): State<AppState>, Path(token): Path<String>) -> Response {
+    let Some(pairing) = state.pairings.get(&token) else {
+        tracing::warn!("pairing token rejected");
+        return pairing_error("This pairing link is invalid or has expired.");
+    };
+
+    let host = pairing
+        .host_id
+        .and_then(|id| state.store.host(id, pairing.user_id));
+    let target = match &host {
+        Some(host) => format!("Open “{}” on this device", html_escape(&host.name)),
+        None => "Sign in to this workspace".to_string(),
+    };
+    let user = state
+        .store
+        .user_by_id(pairing.user_id)
+        .map(|user| html_escape(&user.email))
+        .unwrap_or_else(|| "this workspace".into());
+
+    let body = format!(
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+         <meta name=\"referrer\" content=\"no-referrer\"><title>Connect to Sethu</title></head>\
+         <body style=\"margin:0;min-height:100vh;display:grid;place-items:center;background:#05070d;color:#e9eefb;font-family:-apple-system,system-ui,sans-serif\">\
+         <main style=\"max-width:420px;padding:28px;text-align:center\">\
+         <h1 style=\"font-size:1.25rem;letter-spacing:-.02em\">{target}</h1>\
+         <p style=\"color:#94a3b8;line-height:1.6\">Signed in as {user}. Only continue if you scanned this code yourself.</p>\
+         <form id=\"pair-form\" method=\"post\" action=\"/pair/{token}\">\
+         <button type=\"submit\" style=\"margin-top:8px;padding:12px 20px;border:0;border-radius:12px;background:linear-gradient(135deg,#5eead4,#7dd3fc 55%,#a5b4fc);color:#04121a;font:inherit;font-weight:700;cursor:pointer\">Connect this device</button>\
+         </form>\
+         <p style=\"margin-top:18px\"><a style=\"color:#5eead4\" href=\"/\">Cancel</a></p>\
+         <script src=\"/pair.js\" defer></script>\
+         </main></body></html>"
+    );
+
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
 async fn redeem_pair(State(state): State<AppState>, Path(token): Path<String>) -> Response {
     let Some(pairing) = state.pairings.take(&token) else {
+        tracing::warn!("pairing token rejected on redemption");
         return pairing_error("This pairing link is invalid or has expired.");
     };
 
@@ -162,6 +221,15 @@ async fn redeem_pair(State(state): State<AppState>, Path(token): Path<String>) -
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     tracing::info!(user_id = %session.1.user_id, "pairing completed");
     response
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 fn pairing_error(message: &str) -> Response {

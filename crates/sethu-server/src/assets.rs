@@ -17,6 +17,8 @@ pub fn lookup(path: &str) -> Option<(&'static str, &'static [u8])> {
         "/" | "/index.html" => asset!("index.html", "text/html; charset=utf-8"),
         "/app.js" => asset!("app.js", "text/javascript; charset=utf-8"),
         "/boot-guard.js" => asset!("boot-guard.js", "text/javascript; charset=utf-8"),
+        "/jsqr.min.js" => asset!("jsqr.min.js", "text/javascript; charset=utf-8"),
+        "/pair.js" => asset!("pair.js", "text/javascript; charset=utf-8"),
         "/styles.css" => asset!("styles.css", "text/css; charset=utf-8"),
         "/viewer.html" => asset!("viewer.html", "text/html; charset=utf-8"),
         "/viewer.js" => asset!("viewer.js", "text/javascript; charset=utf-8"),

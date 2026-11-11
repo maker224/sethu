@@ -567,7 +567,10 @@ async fn qr_pairing_is_single_use_and_can_target_a_device() {
     assert_eq!(url.host_str(), Some("sethu.test"));
     let path = url.path().to_string();
 
-    let redeemed = call(&app.app, "GET", &path, None, None, None, None).await;
+    let page = call(&app.app, "GET", &path, None, None, None, None).await;
+    assert_eq!(page.status, StatusCode::OK);
+
+    let redeemed = call(&app.app, "POST", &path, None, None, None, None).await;
     assert_eq!(redeemed.status, StatusCode::SEE_OTHER);
     assert_eq!(
         redeemed.location.as_deref(),
@@ -587,8 +590,8 @@ async fn qr_pairing_is_single_use_and_can_target_a_device() {
     .await;
     assert_eq!(paired_session.body["user"]["email"], "pair@example.com");
 
-    // Scanning / replaying the same token must not create another session.
-    let replay = call(&app.app, "GET", &path, None, None, None, None).await;
+    // Replaying the same token must not create another session.
+    let replay = call(&app.app, "POST", &path, None, None, None, None).await;
     assert_eq!(replay.status, StatusCode::NOT_FOUND);
 }
 

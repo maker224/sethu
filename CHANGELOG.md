@@ -4,6 +4,19 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-11-11
+
+### Added
+
+- **In-app QR scanner**: "Scan a QR code instead" on the sign-in card, **Scan
+  QR** in the dashboard, and "Scan a QR instead" in Add device. Uses the camera
+  over HTTPS, or a photo/pasted link on plain-HTTP LAN origins.
+- Vendored jsQR decoder (MIT) and camera permission for same-origin use.
+- Pairing is now two-step: the phone gets a confirmation page and the token is
+  consumed only by the POST, so camera/link previews no longer break the scan.
+- Clearer distinction between a workspace QR (signs in) and a device-card QR
+  (opens that device viewer).
+
 ## [0.6.0] — 2026-11-11
 
 ### Added
@@ -167,3 +180,4 @@ Initial public release.
 [0.5.1]: https://github.com/maker224/sethu/releases/tag/v0.5.1
 [0.5.2]: https://github.com/maker224/sethu/releases/tag/v0.5.2
 [0.6.0]: https://github.com/maker224/sethu/releases/tag/v0.6.0
+[0.7.0]: https://github.com/maker224/sethu/releases/tag/v0.7.0

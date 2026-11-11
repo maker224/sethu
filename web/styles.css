@@ -1502,6 +1502,57 @@ select:focus-visible {
   text-align: left;
 }
 
+/* In-app QR scanner dialog. */
+.scan-auth-button {
+  margin-top: 10px;
+}
+
+.scan-dialog {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.scan-live {
+  position: relative;
+  aspect-ratio: 1;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+}
+
+.scan-live video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-frame {
+  position: absolute;
+  inset: 16%;
+  border: 2px solid var(--accent);
+  border-radius: 14px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.38);
+  pointer-events: none;
+}
+
+.scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.scan-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.scan-manual .share-link {
+  flex: 1;
+}
+
 /* ---------- toasts ---------- */
 
 .toasts {

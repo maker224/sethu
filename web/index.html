@@ -12,7 +12,7 @@
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css?v=0.6.0" />
+    <link rel="stylesheet" href="/styles.css?v=0.7.0" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -185,6 +185,10 @@
           </form>
 
           <p id="auth-hint" class="auth-hint">First run? Create the account that owns this server.</p>
+          <button id="scan-auth" class="btn btn-secondary btn-block scan-auth-button" type="button">
+            <svg class="icon"><use href="#i-qr" /></svg>
+            Scan a QR code instead
+          </button>
           <p id="auth-footnote" class="auth-footnote">
             Sessions use an HttpOnly, SameSite=Strict cookie. Run Sethu behind TLS before
             exposing it to the internet.
@@ -200,6 +204,10 @@
             <p id="dashboard-note" class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
           </div>
           <div class="dashboard-actions">
+            <button id="scan-qr" class="btn btn-ghost" type="button">
+              <svg class="icon"><use href="#i-qr" /></svg>
+              <span class="btn-label">Scan QR</span>
+            </button>
             <button id="pair-mobile" class="btn btn-secondary" type="button">
               <svg class="icon"><use href="#i-qr" /></svg>
               <span class="btn-label">Pair a phone</span>
@@ -396,6 +404,7 @@
         </div>
 
         <div class="dialog-foot">
+          <button id="host-scan" class="btn btn-ghost" type="button" style="margin-right: auto">Scan a QR instead</button>
           <button id="host-cancel" class="btn btn-ghost" type="button">Cancel</button>
           <button id="host-submit" class="btn btn-primary" type="submit">Add device</button>
         </div>
@@ -483,13 +492,51 @@
       </form>
     </dialog>
 
+    <dialog id="scan-dialog" class="dialog scan-dialog" aria-labelledby="scan-title">
+      <form method="dialog">
+        <div class="dialog-head">
+          <div>
+            <h2 id="scan-title">Scan a QR code</h2>
+            <p class="section-note">Point at the code shown on your Mac or Windows PC.</p>
+          </div>
+          <button class="icon-btn" value="cancel" aria-label="Close">
+            <svg class="icon"><use href="#i-x" /></svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <div id="scan-live-wrap" class="scan-live hidden">
+            <video id="scan-video" playsinline muted></video>
+            <div class="scan-frame"></div>
+          </div>
+          <div class="scan-actions">
+            <label class="btn btn-primary" for="scan-photo">Take / choose photo</label>
+            <input id="scan-photo" type="file" accept="image/*" capture="environment" hidden />
+            <button id="scan-paste-toggle" class="btn btn-secondary" type="button">Paste link</button>
+          </div>
+          <p id="scan-status" class="hint" role="status">
+            Camera scanning works over HTTPS. On a local HTTP address, take a photo of
+            the QR code or paste the link instead.
+          </p>
+          <div id="scan-manual" class="scan-manual hidden">
+            <input id="scan-url" class="share-link" placeholder="http://192.168.1.20:8080/pair/…" />
+            <button id="scan-go" class="btn btn-secondary" type="button">Go</button>
+          </div>
+          <p class="hint">Only scan codes shown on a device you control.</p>
+        </div>
+        <div class="dialog-foot">
+          <button class="btn btn-secondary" value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
     <noscript>
       <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
     </noscript>
 
-    <script src="/boot-guard.js?v=0.6.0"></script>
-    <script type="module" src="/app.js?v=0.6.0"></script>
+    <script src="/jsqr.min.js?v=0.7.0" defer></script>
+    <script src="/boot-guard.js?v=0.7.0"></script>
+    <script type="module" src="/app.js?v=0.7.0"></script>
   </body>
 </html>
