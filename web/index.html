@@ -12,7 +12,7 @@
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css?v=0.7.0" />
+    <link rel="stylesheet" href="/styles.css?v=0.7.1" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -185,7 +185,7 @@
           </form>
 
           <p id="auth-hint" class="auth-hint">First run? Create the account that owns this server.</p>
-          <button id="scan-auth" class="btn btn-secondary btn-block scan-auth-button" type="button">
+          <button id="scan-auth" class="btn btn-secondary btn-block scan-auth-button phone-only hidden" type="button">
             <svg class="icon"><use href="#i-qr" /></svg>
             Scan a QR code instead
           </button>
@@ -204,11 +204,11 @@
             <p id="dashboard-note" class="section-note">Open a device, or add a Mac, Windows PC, iPhone, iPad or Android device reachable from this server.</p>
           </div>
           <div class="dashboard-actions">
-            <button id="scan-qr" class="btn btn-ghost" type="button">
+            <button id="scan-qr" class="btn btn-ghost phone-only hidden" type="button">
               <svg class="icon"><use href="#i-qr" /></svg>
               <span class="btn-label">Scan QR</span>
             </button>
-            <button id="pair-mobile" class="btn btn-secondary" type="button">
+            <button id="pair-mobile" class="btn btn-secondary desktop-only hidden" type="button">
               <svg class="icon"><use href="#i-qr" /></svg>
               <span class="btn-label">Pair a phone</span>
             </button>
@@ -249,6 +249,10 @@
           <button id="empty-add" class="btn btn-secondary" type="button">
             <svg class="icon"><use href="#i-plus" /></svg>
             Add your first device
+          </button>
+          <button id="empty-scan" class="btn btn-primary phone-only hidden" type="button">
+            <svg class="icon"><use href="#i-qr" /></svg>
+            Scan a QR code
           </button>
         </div>
 
@@ -404,7 +408,7 @@
         </div>
 
         <div class="dialog-foot">
-          <button id="host-scan" class="btn btn-ghost" type="button" style="margin-right: auto">Scan a QR instead</button>
+          <button id="host-scan" class="btn btn-ghost phone-only hidden" type="button" style="margin-right: auto">Scan a QR instead</button>
           <button id="host-cancel" class="btn btn-ghost" type="button">Cancel</button>
           <button id="host-submit" class="btn btn-primary" type="submit">Add device</button>
         </div>
@@ -535,8 +539,8 @@
       <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
     </noscript>
 
-    <script src="/jsqr.min.js?v=0.7.0" defer></script>
-    <script src="/boot-guard.js?v=0.7.0"></script>
-    <script type="module" src="/app.js?v=0.7.0"></script>
+    <script src="/jsqr.min.js?v=0.7.1" defer></script>
+    <script src="/boot-guard.js?v=0.7.1"></script>
+    <script type="module" src="/app.js?v=0.7.1"></script>
   </body>
 </html>
