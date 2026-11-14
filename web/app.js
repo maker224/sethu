@@ -18,6 +18,11 @@ const state = {
   csrf: "",
   hosts: [],
   files: [],
+  transfers: [],
+  peers: [],
+  deviceId: "",
+  deviceName: "",
+  shareFile: null,
   registration: true,
   version: "",
   tab: "login",
@@ -65,6 +70,62 @@ async function api(path, { method = "GET", body } = {}) {
     throw new ApiError(message, response.status);
   }
   return data;
+}
+
+// ----- this browser as an online device ----------------------------------
+
+const DEVICE_ID_KEY = "sethu.device.id";
+const DEVICE_NAME_KEY = "sethu.device.name";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function randomUuid() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function defaultDeviceName() {
+  const ua = navigator.userAgent || "";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/iPhone/i.test(ua)) return "iPhone";
+  if (/Android/i.test(ua)) return "Android device";
+  if (/Windows/i.test(ua)) return "Windows PC";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "MacBook";
+  return "This device";
+}
+
+function loadDeviceIdentity() {
+  let id = "";
+  let name = "";
+  try {
+    id = localStorage.getItem(DEVICE_ID_KEY) || "";
+    name = localStorage.getItem(DEVICE_NAME_KEY) || "";
+  } catch {
+    /* Private browsing can refuse storage; a session-only id still works. */
+  }
+  if (!UUID_RE.test(id)) {
+    id = randomUuid();
+    try {
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!name.trim()) {
+    name = defaultDeviceName();
+    try {
+      localStorage.setItem(DEVICE_NAME_KEY, name);
+    } catch {
+      /* ignore */
+    }
+  }
+  state.deviceId = id;
+  state.deviceName = name.trim().slice(0, 40) || "This device";
 }
 
 function el(tag, className, text) {
@@ -244,6 +305,7 @@ authForm.addEventListener("submit", async (event) => {
 });
 
 $("#logout").addEventListener("click", async () => {
+  stopPresence();
   try {
     await api("/api/auth/logout", { method: "POST" });
   } catch {
@@ -262,15 +324,22 @@ let hostsRequest = 0;
 let filesRequest = 0;
 
 function resetWorkspaceUi() {
+  stopPresence(false);
   hostsRequest += 1;
   filesRequest += 1;
   state.hosts = [];
   state.files = [];
+  state.transfers = [];
+  state.peers = [];
+  state.shareFile = null;
   state.filter = "all";
   state.view = "devices";
 
   $("#hosts-grid").replaceChildren();
   $("#files-list").replaceChildren();
+  $("#transfers-list").replaceChildren();
+  $("#transfers-section").classList.add("hidden");
+  $("#online-peers").replaceChildren();
   $("#files-total").textContent = "";
   $("#files-empty").classList.add("hidden");
   $("#filter-empty").classList.add("hidden");
@@ -288,6 +357,7 @@ function resetWorkspaceUi() {
     button.setAttribute("aria-selected", String(active));
   });
   if (pairDialog.open) pairDialog.close();
+  if (shareDialog.open) shareDialog.close();
   applyDeviceUi();
 }
 
@@ -311,8 +381,10 @@ async function enterDashboard() {
   $("#dashboard-view").classList.remove("hidden");
   $("#logout").classList.toggle("hidden", state.authOpen);
   document.title = "Sethu — your devices";
+  loadDeviceIdentity();
   setView("devices");
   await loadHosts();
+  startPresence();
 }
 
 function setView(view) {
@@ -340,6 +412,9 @@ document.querySelectorAll(".workspace-tab").forEach((button) => {
 async function loadSession() {
   const previousUserId = state.user?.id;
   const info = await api("/api/session");
+  const changed =
+    !info.user || (previousUserId && info.user && previousUserId !== info.user.id);
+  if (changed) stopPresence();
   state.user = info.user;
   state.csrf = info.csrf || "";
   state.registration = Boolean(info.registration);
@@ -347,7 +422,7 @@ async function loadSession() {
   state.authOpen = Boolean(info.auth_open);
   state.usernameOnly = Boolean(info.username_only);
   state.maxFileBytes = Number(info.max_file_bytes) || 0;
-  if (!info.user || (previousUserId && info.user && previousUserId !== info.user.id)) {
+  if (changed) {
     // Never keep another workspace's devices or file list in memory/DOM.
     resetWorkspaceUi();
   }
@@ -736,7 +811,9 @@ function renderFiles() {
 
 const shareDialog = $("#share-dialog");
 
-function openShareDialog(file) {  $("#share-file-name").textContent = `${file.name} · ${formatBytes(file.size)}`;
+function openShareDialog(file) {
+  state.shareFile = file;
+  $("#share-file-name").textContent = `${file.name} · ${formatBytes(file.size)}`;
   $("#share-link").value = `${location.origin}/api/files/${encodeURIComponent(file.id)}/download`;
 
   const devices = $("#share-android-devices");
@@ -750,6 +827,7 @@ function openShareDialog(file) {  $("#share-file-name").textContent = `${file.na
     devices.append(button);
   }
 
+  renderShareDevices();
   if (typeof shareDialog.showModal === "function") shareDialog.showModal();
   else shareDialog.setAttribute("open", "");
 }
@@ -771,6 +849,280 @@ async function sendToAndroid(file, host, button) {
     button.textContent = label;
   }
 }
+
+// ----- online devices and device transfers -------------------------------
+
+let presenceTimer = null;
+let transferTimer = null;
+let seenTransfers = new Set();
+let firstTransferPoll = true;
+
+function startPresence() {
+  stopPresence(false);
+  if (!state.user) return;
+  sendHeartbeat();
+  presenceTimer = window.setInterval(sendHeartbeat, 15000);
+  transferTimer = window.setInterval(pollTransfers, 5000);
+}
+
+function stopPresence(announce = true) {
+  window.clearInterval(presenceTimer);
+  window.clearInterval(transferTimer);
+  presenceTimer = null;
+  transferTimer = null;
+  const deviceId = state.deviceId;
+  if (announce && deviceId && state.user) {
+    // `keepalive` lets the browser finish this even while the page unloads.
+    fetch(`/api/presence/${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: state.csrf ? { "x-sethu-csrf": state.csrf } : {},
+    }).catch(() => {
+      /* Presence also expires on its own after the TTL. */
+    });
+  }
+  state.peers = [];
+  renderPresence();
+}
+
+async function sendHeartbeat() {
+  if (!state.user) return;
+  try {
+    const data = await api("/api/presence", {
+      method: "POST",
+      body: { device_id: state.deviceId, name: state.deviceName },
+    });
+    state.peers = (data.peers || []).filter((peer) => peer.id !== state.deviceId);
+    renderPresence();
+  } catch (error) {
+    if (error.status === 401) {
+      state.user = null;
+      resetWorkspaceUi();
+      showAuth();
+    }
+    // Transient network failures recover on the next heartbeat.
+  }
+}
+
+function renderPresence() {
+  const name = $("#this-device-name");
+  if (name) name.textContent = state.deviceName || "this device";
+
+  const chips = $("#online-peers");
+  if (chips) {
+    chips.replaceChildren();
+    if (state.peers.length === 0) {
+      chips.append(
+        el(
+          "span",
+          "presence-none",
+          "None yet — open Sethu on another device with the same username.",
+        ),
+      );
+    } else {
+      for (const peer of state.peers) {
+        const chip = el("span", "presence-chip");
+        chip.append(el("span", "presence-dot"), document.createTextNode(peer.name));
+        chips.append(chip);
+      }
+    }
+  }
+
+  // Keep an open Share dialog in sync as devices come and go.
+  if (shareDialog.open) renderShareDevices();
+}
+
+function renderShareDevices() {
+  const wrap = $("#share-online-devices");
+  if (!wrap) return;
+  wrap.replaceChildren();
+  const peers = state.peers;
+  $("#share-online-empty").classList.toggle("hidden", peers.length > 0);
+  for (const peer of peers) {
+    const button = el("button", "btn btn-secondary btn-sm", `Send to ${peer.name}`);
+    button.type = "button";
+    button.addEventListener("click", () => sendToDevice(state.shareFile, peer, button));
+    wrap.append(button);
+  }
+}
+
+async function sendToDevice(file, peer, button) {
+  if (!file) return;
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Sending…";
+  try {
+    await api(`/api/files/${file.id}/transfer`, {
+      method: "POST",
+      body: { from_device: state.deviceId, to_device: peer.id },
+    });
+    toast(`Sent to ${peer.name}. Open Files there to receive it.`, "success");
+    if (shareDialog.open) shareDialog.close();
+    await pollTransfers();
+  } catch (error) {
+    toast(error.message, "error");
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
+async function pollTransfers() {
+  if (!state.user) return;
+  try {
+    const transfers = (await api("/api/transfers")) || [];
+    if (firstTransferPoll) {
+      firstTransferPoll = false;
+      seenTransfers = new Set(
+        transfers.filter((item) => item.status === "pending").map((item) => item.id),
+      );
+    } else {
+      for (const transfer of transfers) {
+        if (
+          transfer.status === "pending" &&
+          transfer.to.id === state.deviceId &&
+          !seenTransfers.has(transfer.id)
+        ) {
+          seenTransfers.add(transfer.id);
+          toast(`Incoming file from ${transfer.from.name}: ${transfer.file_name}`, "info");
+        }
+      }
+    }
+    state.transfers = transfers;
+    renderTransfers();
+  } catch (error) {
+    if (error.status === 401) {
+      state.user = null;
+      resetWorkspaceUi();
+      showAuth();
+    }
+  }
+}
+
+const TRANSFER_LABELS = {
+  pending: "Waiting",
+  delivered: "Received",
+  canceled: "Cancelled",
+  expired: "Expired",
+};
+
+function renderTransfers() {
+  const section = $("#transfers-section");
+  const list = $("#transfers-list");
+  if (!section || !list) return;
+  const transfers = state.transfers || [];
+  section.classList.toggle("hidden", transfers.length === 0);
+  $("#transfers-count").textContent = transfers.length
+    ? `${transfers.length} transfer${transfers.length === 1 ? "" : "s"}`
+    : "";
+  list.replaceChildren();
+
+  for (const transfer of transfers) {
+    const row = el("div", "file-row transfer-row");
+    row.dataset.transferId = transfer.id;
+
+    const fileIcon = el("div", "file-icon");
+    fileIcon.append(icon(transfer.status === "delivered" ? "i-download" : "i-share"));
+
+    const main = el("div", "file-main");
+    main.append(
+      el("p", "file-name", transfer.file_name),
+      el(
+        "p",
+        "file-meta",
+        `${transfer.from.name} → ${transfer.to.name} · ${formatBytes(transfer.size)}`,
+      ),
+    );
+
+    row.append(
+      fileIcon,
+      main,
+      el("span", `transfer-status is-${transfer.status}`, TRANSFER_LABELS[transfer.status] || transfer.status),
+    );
+
+    if (transfer.status === "pending" && transfer.to.id === state.deviceId) {
+      const receive = el("button", "btn btn-primary btn-sm", "Receive");
+      receive.type = "button";
+      receive.addEventListener("click", () => acceptTransfer(transfer, receive));
+      row.append(receive);
+    } else if (transfer.status === "pending" && transfer.from.id === state.deviceId) {
+      const cancel = el("button", "btn btn-ghost btn-sm", "Cancel");
+      cancel.type = "button";
+      cancel.addEventListener("click", () => cancelTransfer(transfer, cancel));
+      row.append(cancel);
+    } else if (transfer.status === "delivered" && transfer.download_url) {
+      const download = el("a", "icon-btn");
+      download.href = transfer.download_url;
+      download.setAttribute("download", transfer.file_name);
+      download.title = "Download";
+      download.setAttribute("aria-label", `Download ${transfer.file_name}`);
+      download.append(icon("i-download"));
+      row.append(download);
+    }
+
+    list.append(row);
+  }
+}
+
+async function acceptTransfer(transfer, button) {
+  button.disabled = true;
+  button.textContent = "Receiving…";
+  try {
+    const result = await api(`/api/transfers/${transfer.id}/accept`, {
+      method: "POST",
+      body: { device_id: state.deviceId },
+    });
+    toast(`Received ${result.file_name} from ${result.from.name}.`, "success");
+    await pollTransfers();
+    if (result.download_url) {
+      const link = document.createElement("a");
+      link.href = result.download_url;
+      link.setAttribute("download", result.file_name);
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }
+  } catch (error) {
+    toast(error.message, "error");
+    button.disabled = false;
+    button.textContent = "Receive";
+  }
+}
+
+async function cancelTransfer(transfer, button) {
+  button.disabled = true;
+  try {
+    await api(`/api/transfers/${transfer.id}/cancel`, {
+      method: "POST",
+      body: { device_id: state.deviceId },
+    });
+    toast("Transfer cancelled.");
+    await pollTransfers();
+  } catch (error) {
+    toast(error.message, "error");
+    button.disabled = false;
+  }
+}
+
+$("#rename-device").addEventListener("click", () => {
+  const name = window.prompt("Name this device", state.deviceName || "This device");
+  if (name === null) return;
+  const cleaned = name.trim().slice(0, 40);
+  if (!cleaned) return;
+  state.deviceName = cleaned;
+  try {
+    localStorage.setItem(DEVICE_NAME_KEY, cleaned);
+  } catch {
+    /* ignore */
+  }
+  renderPresence();
+  sendHeartbeat();
+});
+
+window.addEventListener("pagehide", () => stopPresence());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.user) sendHeartbeat();
+});
 
 $("#copy-share-link").addEventListener("click", async () => {
   const input = $("#share-link");

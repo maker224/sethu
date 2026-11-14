@@ -70,6 +70,18 @@ authentication layer.
   Downloads are forced attachments with `nosniff` to prevent execution on the
   Sethu origin. Files are scoped per user; a download link from one username
   returns 404 for another. Open mode intentionally shares one workspace.
+- **Device transfers are server-relayed, not peer-to-peer.** Presence and
+  transfer records are ephemeral and scoped to one username. The server refuses
+  a send unless both device ids are online inside the presence TTL, and refuses
+  a download until the recipient device has accepted. The relay means the server
+  (and its operator) can read the file, and the receiving device must trust the
+  server just like the downloading browser does. No direct device-to-device or
+  LAN discovery path exists.
+- **Presence is a liveness hint, not authentication.** A device id is stored in
+  localStorage and is not a credential; every presence/heartbeat call still
+  requires the session cookie and CSRF token. Guessing another device id cannot
+  accept its transfer because the accept endpoint checks that the id belongs to
+  the calling workspace and is currently online.
 - **Pairing status is owner-only.** `GET /api/pair/{token}` checks that the
   pairing belongs to the authenticated user; it never exposes a session or file
   data and is only used to close the QR window.

@@ -54,6 +54,10 @@ pub struct Config {
     pub max_file_bytes: u64,
     /// Lifetime of a QR pairing code.
     pub pair_ttl: Duration,
+    /// How long a browser counts as online after its last heartbeat.
+    pub presence_ttl: Duration,
+    /// How long a device-to-device transfer waits for the receiver to accept.
+    pub transfer_ttl: Duration,
 }
 
 impl Config {
@@ -137,6 +141,12 @@ impl Config {
             username_only,
             max_file_bytes: env_u64("SETHU_MAX_FILE_BYTES", 2 * 1024 * 1024 * 1024).max(1),
             pair_ttl: Duration::from_secs(env_u64("SETHU_PAIR_TTL_SECONDS", 120).clamp(30, 600)),
+            presence_ttl: Duration::from_secs(
+                env_u64("SETHU_PRESENCE_TTL_SECONDS", 45).clamp(15, 300),
+            ),
+            transfer_ttl: Duration::from_secs(
+                env_u64("SETHU_TRANSFER_TTL_SECONDS", 600).clamp(60, 3_600),
+            ),
         })
     }
 
@@ -164,6 +174,8 @@ impl Config {
             username_only: false,
             max_file_bytes: 10 * 1024 * 1024,
             pair_ttl: Duration::from_secs(120),
+            presence_ttl: Duration::from_secs(45),
+            transfer_ttl: Duration::from_secs(600),
         }
     }
 

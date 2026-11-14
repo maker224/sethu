@@ -4,7 +4,13 @@ use anyhow::Context;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
-use crate::{config::Config, pairing::PairingStore, rate_limit::RateLimiter, store::Store};
+use crate::{
+    config::Config,
+    pairing::PairingStore,
+    rate_limit::RateLimiter,
+    store::Store,
+    transfer::{PresenceStore, TransferStore},
+};
 
 /// Shared application state. Cheap to clone (`Arc` inside).
 #[derive(Clone)]
@@ -20,6 +26,10 @@ pub struct AppState {
     pub local_user: Option<Uuid>,
     /// Short-lived QR pairing codes.
     pub pairings: Arc<PairingStore>,
+    /// Devices that currently have a Sethu browser open.
+    pub presence: Arc<PresenceStore>,
+    /// Pending and delivered device-to-device file transfers.
+    pub transfers: Arc<TransferStore>,
 }
 
 impl AppState {
@@ -55,6 +65,8 @@ impl AppState {
             ws_slots,
             local_user,
             pairings: Arc::new(PairingStore::new()),
+            presence: Arc::new(PresenceStore::new()),
+            transfers: Arc::new(TransferStore::new()),
         })
     }
 }

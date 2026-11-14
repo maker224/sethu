@@ -21,6 +21,9 @@ two WebSocket bridges. There is no database, message broker or worker process.
 │                                                                      │
 │  security::guard ── Origin/Host check, CSRF, auth rate limits        │
 │  api            ── session, auth, hosts, health                      │
+│  files          ── uploads, downloads, Android adb push              │
+│  transfer       ── device presence + server-relayed file handoff     │
+│  pairing        ── short-lived QR session handoff                    │
 │  ws/vnc         ── bidirectional byte pump (RFB is opaque)            │
 │  ws/ios         ── WDA frame producer + command dispatcher           │
 │  ws/android     ── adb frame producer + command dispatcher           │
@@ -225,6 +228,9 @@ This is a shared server workspace, not peer-to-peer transfer. Upload from a
 phone, download on the MacBook (or vice versa). It is not end-to-end encrypted,
 and the server operator can read stored files.
 
+`POST /api/files/{id}/transfer` adds an explicit device-to-device handoff on top
+of the same storage. It is described in the next section.
+
 File metadata and bytes are scoped to `owner_id`; every list/download/send
 checks it. The frontend clears `state.files`, the file rows and the totals when
 the session user changes, and in-flight file/host responses from the previous
@@ -232,6 +238,35 @@ user are discarded so a slow request cannot paint old data into the new
 workspace. `SETHU_AUTH=open` intentionally maps everyone to one workspace.
 
 The frontend exposes this as the **Files** tab next to **Devices**.
+
+## Device presence and transfers
+
+`transfer.rs` implements the "both devices online, any network" exchange:
+
+- **Presence.** Every open dashboard tab calls `POST /api/presence` with a
+  stable per-browser `device_id` (localStorage) and a human name, then repeats
+  every 15 s. The server keeps `(user_id, device_id) → (name, last_seen)` in
+  memory. A device is online while `last_seen` is within
+  `SETHU_PRESENCE_TTL_SECONDS` (default 45 s). `DELETE /api/presence/{id}` and
+  `keepalive` fetches on `pagehide` remove a device immediately; otherwise it
+  ages out. Presence is scoped to the signed-in user, so two workspaces never
+  see each other's tabs.
+- **Transfer.** `POST /api/files/{id}/transfer` takes `from_device` and
+  `to_device`. The server refuses unless both ids are online for the same user,
+  the file belongs to that user, and the ids differ. It records a pending
+  transfer in memory with a TTL (`SETHU_TRANSFER_TTL_SECONDS`, default 600 s).
+- **Receive.** `GET /api/transfers` lists the workspace's transfers (metadata
+  only). `POST /api/transfers/{id}/accept` must come from the recipient device
+  and requires that device to still be online; it flips the transfer to
+  `delivered`. `GET /api/transfers/{id}/download` reuses the file streaming
+  helper and only works for delivered transfers. A sender can
+  `POST /api/transfers/{id}/cancel` while it is pending.
+
+Both devices only need to reach the Sethu server. The server relays the bytes on
+download; the devices never connect to each other, no LAN discovery is used, and
+nothing is stored outside the existing `data/files/<owner>/` workspace. Because
+presence and transfer records are ephemeral, a server restart marks every device
+offline and drops pending handoffs, while uploaded files remain on disk.
 
 ## Sign-in modes
 
@@ -295,8 +330,9 @@ Plain ES modules and one stylesheet. No bundler, no framework, no build step.
 
 - `app.js` handles boot, login/register, device CRUD, platform filter tabs,
   the shared **Files** workspace (drag/drop, sequential uploads with progress,
-  downloads, delete) and toasts. It never uses `innerHTML` with user data; DOM
-  nodes are constructed and filled with `textContent`.
+  downloads, delete), online-device presence and device-to-device transfers,
+  and toasts. It never uses `innerHTML` with user data; DOM nodes are
+  constructed and filled with `textContent`.
 - `viewer.js` is the shell: loads the host, picks a viewer module, renders its
   action buttons, handles fullscreen/disconnect/reconnect.
 - `viewer-vnc.js` dynamically imports noVNC from `/vendor/novnc/core/rfb.js` if
@@ -322,7 +358,10 @@ to one file. `SETHU_WEB_DIR` overrides them for development.
   byte relay, frame streaming, coordinate conversion and input injection.
 - File tests cover multipart uploads above the JSON body limit, download bytes
   and headers, deletion, oversize rejection with cleanup, sanitised filenames
-  and open-access mode.- No test needs a Mac, a phone or network access.
+  and open-access mode.
+- Transfer tests cover presence scoping, the both-devices-online gate,
+  sender/recipient authorization, delivery before download, replay and expiry.
+- No test needs a Mac, a phone or network access.
 
 ## Design choices and trade-offs
 

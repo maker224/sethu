@@ -27,7 +27,7 @@ Windows VNC server  :5900    ──► iPhone / iPad        ──► Android ph
 | **Windows PC** | Full desktop and input through any VNC server (TightVNC, UltraVNC, RealVNC) | Same RFB bridge as macOS |
 | **iPhone / iPad** | Live screen, tap, swipe, text input, home/lock buttons, screenshot download, 4–15 fps | PNG frames and WDA commands over WebSocket |
 | **Android phone / tablet** | Live screen, tap, swipe, text input, home/back/recents/power, screenshot download, 3–12 fps | PNG frames from `adb screencap` and `adb shell input` |
-| **Files** | Upload and download any format between your devices from the **Files** tab | Multipart uploads to the Sethu server, streamed downloads |
+| **Files** | Upload and download any format between your devices from the **Files** tab, or send a file straight to another device that is online | Multipart uploads to the Sethu server, streamed downloads and server-relayed device transfers |
 
 Everything runs on one small binary. Accounts, device list and sessions live in
 a single JSON file on your server. Sethu never stores device credentials — they
@@ -300,13 +300,35 @@ browser:
 3. On another device open the same page → **Files** → download. On each file,
    **Share** also gives you a copyable link and, for Android, a direct push.
 
+### Send to a device that is online (any network)
+
+The **Files** tab shows which of your devices are online right now. This is a
+browser presence check, not a LAN scan: each device keeps a small heartbeat to
+the Sethu server, so the two devices only have to reach the server — they do
+**not** have to share a Wi-Fi network or be able to reach each other.
+
+1. Open Sethu on both devices and sign in with the same username. Give each one
+   a name with **Rename** in the Files tab ("MacBook", "iPhone", "Work PC").
+2. On the sending device: **Files** → **Share** on a file → **Send to…** under
+   *Send to an online device*.
+3. On the receiving device: **Files** → **Device transfers** → **Receive**. The
+   download starts and the file is added to that device.
+
+If either device is offline, the send is refused with an explanation. A pending
+transfer expires after 10 minutes (`SETHU_TRANSFER_TTL_SECONDS`) if the receiver
+never accepts it, and only a received transfer can be downloaded. Both tabs need
+to stay open while the transfer is pending; closing the tab marks the device
+offline after the presence TTL (`SETHU_PRESENCE_TTL_SECONDS`).
+
 | Scenario | Works because |
 | --- | --- |
 | **Android → MacBook** | Android Chrome uploads; the MacBook downloads from the same list |
 | **Windows → MacBook** | Same flow from Edge/Chrome on Windows |
 | **Android + Windows → MacBook** | Both upload into the same workspace list |
 | **iPhone/iPad → MacBook** | Safari's file picker uploads Photos, Files or camera captures |
-| **MacBook → Android** | Upload on the MacBook, then **Share → Send to Android** pushes it to `/sdcard/Download/` via adb |
+| **MacBook → Android (different network)** | **Share → Send to** an online Android device; receive it there in Files |
+| **iPhone → MacBook (different network)** | Same online-device transfer in either direction |
+| **MacBook → Android (same LAN, adb)** | **Share → Send directly to Android** pushes it to `/sdcard/Download/` |
 | **MacBook → Windows** | Upload on the MacBook, then **Share → Copy** and open the link in the Windows browser |
 | **MacBook → any browser** | Copy the download link from **Share** and open it on the other device |
 
@@ -322,6 +344,15 @@ Behaviour:
   `adb push` into its public Downloads folder (no download step on the phone).
   Direct push needs adb on the Sethu host and the device authorized; the copy
   link works everywhere.
+- **Send to an online device** relays the file through the Sethu server. It is
+  refused unless both the sending and receiving browsers are online in the same
+  username workspace, and it waits for the receiver to press **Receive**. It
+  works across networks because only the server has to be reachable. Presence
+  and transfers are in memory, so a server restart marks devices offline and
+  drops pending transfers; uploaded files themselves are unaffected.
+- Transfers are scoped to one workspace and one recipient device. The receiver
+  cannot download before accepting, and a transfer link from another username
+  returns 404.
 - Downloads are forced `Content-Disposition: attachment` with `nosniff`, so an
   uploaded HTML or SVG cannot execute on the Sethu origin.
 - Files are visible only inside their own username workspace. If you sign out
@@ -353,6 +384,8 @@ See `.env.example`.
 | `SETHU_AUTH` | `required` | `required`, `username` (no password) or `open` (no sign-in; trusted LAN only) |
 | `SETHU_MAX_FILE_BYTES` | `2147483648` | Maximum size of one uploaded file |
 | `SETHU_PAIR_TTL_SECONDS` | `120` | QR pairing code lifetime (30–600) |
+| `SETHU_PRESENCE_TTL_SECONDS` | `45` | How long a device stays “online” after its last heartbeat (15–300) |
+| `SETHU_TRANSFER_TTL_SECONDS` | `600` | How long a pending device transfer waits for **Receive** (60–3600) |
 | `SETHU_ALLOW_REGISTRATION` | `true` | Set `false` after creating your account |
 | `SETHU_SESSION_TTL_HOURS` | `168` | Login lifetime |
 | `SETHU_IOS_FPS` | `10` | Default iPhone/iPad frame rate (1–15) |
@@ -428,7 +461,15 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `POST` | `/api/files` | Multipart upload (`file` field, any format) |
 | `GET` | `/api/files/{id}/download` | Streamed attachment download |
 | `POST` | `/api/files/{id}/send` | Push a file to an Android device's Downloads (`host_id`) |
+| `POST` | `/api/files/{id}/transfer` | Queue a file transfer to an online device (`from_device`, `to_device`) |
 | `DELETE` | `/api/files/{id}` | Delete a file and its contents |
+| `POST` | `/api/presence` | Announce this browser as an online device (`device_id`, `name`) |
+| `GET` | `/api/presence` | List online devices in the workspace |
+| `DELETE` | `/api/presence/{device_id}` | Leave the online list immediately |
+| `GET` | `/api/transfers` | List this workspace's pending/received transfers |
+| `POST` | `/api/transfers/{id}/accept` | Receive a transfer (`device_id` must be the recipient) |
+| `POST` | `/api/transfers/{id}/cancel` | Cancel a pending transfer (`device_id` must be the sender) |
+| `GET` | `/api/transfers/{id}/download` | Download a received transfer |
 | `POST` | `/api/pair` | Create a short-lived QR pairing link (`host_id` optional) |
 | `GET` | `/api/pair/{token}` | Pairing status (`pending`/`redeemed`/`expired`), owner only |
 | `GET` | `/pair/{token}` | Confirmation page (link previews can't consume the token) |
@@ -543,6 +584,7 @@ Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
   sharing between accounts yet.
 - **No peer-to-peer or end-to-end encrypted file transfer**, audio, multi-monitor
   selection, RDP or recording in v0.4. Files live in a shared server workspace;
+  online device transfers are relayed through that server, not peer-to-peer.
   Android pushes use adb and everything else uses the browser.
 
 ### Roadmap
