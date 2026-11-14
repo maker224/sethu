@@ -12,7 +12,7 @@
     <title>Sethu — your Apple devices, anywhere</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="stylesheet" href="/styles.css?v=0.9.0" />
+    <link rel="stylesheet" href="/styles.css?v=0.10.0" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -256,46 +256,21 @@
           </button>
         </div>
 
-        <div class="setup-tips">
-          <div class="tip">
-            <h3>Mac in two minutes</h3>
-            <ol>
-              <li>System Settings → General → Sharing → <strong>Screen Sharing</strong> on.</li>
-              <li>Allow your macOS user, or set a VNC password under <strong>Computer Settings…</strong>.</li>
-              <li>Add the Mac's hostname or IP, port <code>5900</code>.</li>
-            </ol>
-          </div>
-          <div class="tip">
-            <h3>Windows over VNC</h3>
-            <ol>
-              <li>Install <strong>TightVNC</strong>, UltraVNC or RealVNC on the PC.</li>
-              <li>Set a VNC password and allow port <code>5900</code> through Windows Firewall.</li>
-              <li>Add the PC's hostname or IP, port <code>5900</code>.</li>
-            </ol>
-            <p class="tip-note">Windows Remote Desktop (RDP) is not proxied — use a VNC server.</p>
-          </div>
-          <div class="tip">
-            <h3>iPhone / iPad mirroring</h3>
-            <ol>
-              <li>Connect the device to a Mac and start <strong>WebDriverAgent</strong>.</li>
-              <li>Forward port <code>8100</code> (iproxy or go-ios) so Sethu can reach it.</li>
-              <li>Add <code>http://mac-ip:8100</code> as an iPhone / iPad device.</li>
-            </ol>
-            <p class="tip-note">Screenshots only, no audio. DRM video and the lock screen stay hidden by iOS.</p>
-          </div>
-          <div class="tip">
-            <h3>Android over adb</h3>
-            <ol>
-              <li>Enable Developer options → <strong>USB debugging</strong> (or wireless debugging).</li>
-              <li>Run <code>adb devices</code> on the Sethu host and authorize the device.</li>
-              <li>Add the serial, e.g. <code>R58M…</code> or <code>192.168.1.30:5555</code>.</li>
-            </ol>
-            <p class="tip-note">adb grants shell access to the device. Keep the Sethu host and adb trusted.</p>
-          </div>
-        </div>
         </div>
 
         <div id="files-panel" class="files-panel hidden">
+          <div id="presence-bar" class="presence-bar">
+            <div class="presence-self">
+              <span class="presence-dot" aria-hidden="true"></span>
+              <span>Online as <strong id="this-device-name">this device</strong></span>
+              <button id="rename-device" class="link-btn" type="button">Rename</button>
+            </div>
+            <div class="presence-peers">
+              <span class="presence-label">Other devices online</span>
+              <div id="online-peers" class="presence-chips" aria-live="polite"></div>
+            </div>
+          </div>
+
           <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload files to share">
             <div class="dropzone-icon"><svg class="icon"><use href="#i-upload" /></svg></div>
             <h3>Drop files here to share</h3>
@@ -321,11 +296,21 @@
           </div>
           <div id="files-list" class="files-list" aria-live="polite"></div>
           <p id="files-empty" class="files-empty hidden">No files yet. Uploads from any of your devices appear here.</p>
+
+          <div id="transfers-section" class="transfers-section hidden">
+            <div class="files-head">
+              <h3>Device transfers</h3>
+              <span id="transfers-count" class="files-total"></span>
+            </div>
+            <div id="transfers-list" class="files-list" aria-live="polite"></div>
+          </div>
+
           <p class="files-note">
             Files are stored on this Sethu server, so downloads land on whichever device you use.
-            Use <strong>Share</strong> on a file to copy a download link or push it straight to an
-            Android device's Downloads folder. Uploads are visible to everyone with access to this
-            workspace; arbitrary files are served as attachments and not executed.
+            Send a file to another device that is online — even on a different Wi-Fi network — and
+            receive it there from <strong>Files</strong>. Use <strong>Share</strong> to copy a download
+            link or push a file straight to an Android device's Downloads folder. Uploads are served
+            as attachments and not executed.
           </p>
         </div>
       </section>
@@ -427,6 +412,12 @@
           </button>
         </div>
         <div class="dialog-body">
+          <section id="share-online-section" class="share-section">
+            <h3>Send to an online device</h3>
+            <p class="hint">Works across different Wi-Fi networks. Both devices need Sethu open and the same username; the other device receives the file from its Files tab.</p>
+            <div id="share-online-devices" class="share-devices"></div>
+            <p id="share-online-empty" class="hint hidden">No other device is online right now. Open Sethu there and sign in first.</p>
+          </section>
           <section class="share-section">
             <h3>Windows, Android or any browser</h3>
             <p class="hint">Copy this link and open it on the other device to download. In secure mode that device must be signed in.</p>
@@ -539,8 +530,8 @@
       <div class="noscript">Sethu needs JavaScript to stream your devices.</div>
     </noscript>
 
-    <script src="/jsqr.min.js?v=0.9.0" defer></script>
-    <script src="/boot-guard.js?v=0.9.0"></script>
-    <script type="module" src="/app.js?v=0.9.0"></script>
+    <script src="/jsqr.min.js?v=0.10.0" defer></script>
+    <script src="/boot-guard.js?v=0.10.0"></script>
+    <script type="module" src="/app.js?v=0.10.0"></script>
   </body>
 </html>

@@ -1,9 +1,9 @@
 /* Session shell: loads the device, mounts the right viewer and wires the
    shared toolbar. Viewer modules own the transport and return actions. */
 
-import { mountVnc } from "./viewer-vnc.js?v=0.9.0";
-import { mountIos } from "./viewer-ios.js?v=0.9.0";
-import { mountAndroid } from "./viewer-android.js?v=0.9.0";
+import { mountVnc } from "./viewer-vnc.js?v=0.10.0";
+import { mountIos } from "./viewer-ios.js?v=0.10.0";
+import { mountAndroid } from "./viewer-android.js?v=0.10.0";
 
 const $ = (selector) => document.querySelector(selector);
 

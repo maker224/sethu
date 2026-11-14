@@ -13,6 +13,7 @@ pub mod security;
 pub mod state;
 pub mod store;
 pub mod target;
+pub mod transfer;
 pub mod util;
 pub mod wda;
 pub mod web;
@@ -29,6 +30,7 @@ pub fn app(state: AppState) -> Router {
         .merge(api::router())
         .merge(files::router())
         .merge(pairing::router())
+        .merge(transfer::router())
         .merge(ws::router())
         .fallback(web::serve)
         .with_state(state.clone())

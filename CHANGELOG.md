@@ -4,6 +4,40 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] — 2026-11-11
+
+### Added
+
+- **Cross-network file exchange between online devices.** Each open Sethu tab
+  announces itself with a stable device id and a heartbeat. **Files → Share →
+  Send to an online device** queues the file for another device in the same
+  username workspace; the receiving device sees it under **Device transfers**
+  and presses **Receive** to download. The devices never need the same Wi-Fi
+  network — both only need to reach the Sethu server.
+- **Presence strip** in the Files tab showing this device's name (renameable)
+  and the other devices that are online right now.
+- **Server-enforced online gate.** Sending is refused unless both devices
+  heartbeated inside `SETHU_PRESENCE_TTL_SECONDS`, and receiving is refused
+  when the recipient is offline. Only a received transfer can be downloaded.
+- Pending transfers expire after `SETHU_TRANSFER_TTL_SECONDS` (default 10
+  minutes); the sender can cancel, and expired/finished transfers are shown with
+  a status.
+- New endpoints: `POST/GET /api/presence`, `DELETE /api/presence/{device_id}`,
+  `POST /api/files/{id}/transfer`, `GET /api/transfers`,
+  `POST /api/transfers/{id}/accept`, `POST /api/transfers/{id}/cancel`, and
+  `GET /api/transfers/{id}/download`.
+
+### Changed
+
+- The Files tab copy now explains that transfers work across different networks
+  while both devices are online, and that transfers are relayed through the
+  server rather than sent peer-to-peer.
+
+### Tests
+
+- Presence scoping, online/offline gating, sender/recipient authorization,
+  delivery-before-download, replay, cancellation and transfer expiry.
+
 ## [0.9.0] — 2026-11-11
 
 ### Changed
@@ -232,3 +266,4 @@ Initial public release.
 [0.7.1]: https://github.com/maker224/sethu/releases/tag/v0.7.1
 [0.8.0]: https://github.com/maker224/sethu/releases/tag/v0.8.0
 [0.9.0]: https://github.com/maker224/sethu/releases/tag/v0.9.0
+[0.10.0]: https://github.com/maker224/sethu/releases/tag/v0.10.0
