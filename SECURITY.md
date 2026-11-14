@@ -68,7 +68,11 @@ authentication layer.
   under `data/files/` (honouring the data directory permissions) and are visible
   to everyone with access to the workspace. Sethu does not scan for malware.
   Downloads are forced attachments with `nosniff` to prevent execution on the
-  Sethu origin.
+  Sethu origin. Files are scoped per user; a download link from one username
+  returns 404 for another. Open mode intentionally shares one workspace.
+- **Pairing status is owner-only.** `GET /api/pair/{token}` checks that the
+  pairing belongs to the authenticated user; it never exposes a session or file
+  data and is only used to close the QR window.
 - Accounts are not isolated from each other's *devices* beyond ownership checks;
   there are no admin roles in v0.3.
 - Traffic analysis and screen contents are visible to the server operator.

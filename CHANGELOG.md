@@ -4,6 +4,25 @@ All notable changes to Sethu are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] — 2026-11-11
+
+### Changed
+
+- **Strict file isolation on user change.** Signing out and into another
+  username clears the previous workspace's file list from memory and from the
+  DOM, ignores in-flight responses from the old user, and the server only ever
+  lists/downloads files owned by the current user. A download link from user A
+  returns 404 for user B.
+- **Automatic pairing-window close.** The desktop QR window polls pairing status
+  and closes itself (with a “Phone connected” toast) as soon as the phone
+  completes the scan, instead of staying open until manually dismissed.
+- Added an owner-only `GET /api/pair/{token}` status endpoint.
+
+### Tests
+
+- Added multi-user file isolation coverage (list and download) and pairing
+  status pending → redeemed coverage.
+
 ## [0.8.0] — 2026-11-11
 
 ### Added
@@ -212,3 +231,4 @@ Initial public release.
 [0.7.0]: https://github.com/maker224/sethu/releases/tag/v0.7.0
 [0.7.1]: https://github.com/maker224/sethu/releases/tag/v0.7.1
 [0.8.0]: https://github.com/maker224/sethu/releases/tag/v0.8.0
+[0.9.0]: https://github.com/maker224/sethu/releases/tag/v0.9.0

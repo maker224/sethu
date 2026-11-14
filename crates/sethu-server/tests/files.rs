@@ -53,12 +53,12 @@ fn config(dir: &std::path::Path) -> Config {
     config
 }
 
-async fn register(harness: &Harness) -> (String, String) {
+async fn register(harness: &Harness, email: &str) -> (String, String) {
     let response = harness
         .client
         .post(format!("{}/api/auth/register", harness.base))
         .header("origin", &harness.base)
-        .json(&json!({"email": "files@example.com", "password": "files-password"}))
+        .json(&json!({"email": email, "password": "files-password"}))
         .send()
         .await
         .expect("register");
@@ -119,7 +119,7 @@ async fn upload(
 async fn upload_list_download_delete_roundtrip() {
     let dir = std::env::temp_dir().join(format!("sethu-files-{}", Uuid::new_v4()));
     let harness = start(config(&dir)).await;
-    let (cookie, csrf) = register(&harness).await;
+    let (cookie, csrf) = register(&harness, "files@example.com").await;
 
     // Deliberately larger than the 64 KiB JSON body limit.
     let payload = vec![0xABu8; 100_000];
@@ -199,12 +199,67 @@ async fn upload_list_download_delete_roundtrip() {
 }
 
 #[tokio::test]
+async fn files_are_isolated_between_users() {
+    let dir = std::env::temp_dir().join(format!("sethu-files-iso-{}", Uuid::new_v4()));
+    let harness = start(config(&dir)).await;
+    let (alice_cookie, alice_csrf) = register(&harness, "alice@example.com").await;
+    let uploaded = upload(
+        &harness,
+        Some(&alice_cookie),
+        Some(&alice_csrf),
+        "alice-only.txt",
+        b"private to alice".to_vec(),
+    )
+    .await;
+    assert_eq!(uploaded.status(), reqwest::StatusCode::CREATED);
+    let file_id = uploaded.json::<Value>().await.expect("file json")["id"]
+        .as_str()
+        .expect("file id")
+        .to_string();
+
+    let (bob_cookie, _bob_csrf) = register(&harness, "bob@example.com").await;
+
+    let bob_list: Value = harness
+        .client
+        .get(format!("{}/api/files", harness.base))
+        .header("cookie", &bob_cookie)
+        .send()
+        .await
+        .expect("bob list")
+        .json()
+        .await
+        .expect("bob list json");
+    assert_eq!(bob_list.as_array().expect("array").len(), 0);
+
+    let bob_download = harness
+        .client
+        .get(format!("{}/api/files/{file_id}/download", harness.base))
+        .header("cookie", &bob_cookie)
+        .send()
+        .await
+        .expect("bob download");
+    assert_eq!(bob_download.status(), reqwest::StatusCode::NOT_FOUND);
+
+    let alice_list: Value = harness
+        .client
+        .get(format!("{}/api/files", harness.base))
+        .header("cookie", &alice_cookie)
+        .send()
+        .await
+        .expect("alice list")
+        .json()
+        .await
+        .expect("alice list json");
+    assert_eq!(alice_list.as_array().expect("array").len(), 1);
+}
+
+#[tokio::test]
 async fn oversize_upload_is_rejected_and_cleaned_up() {
     let dir = std::env::temp_dir().join(format!("sethu-files-big-{}", Uuid::new_v4()));
     let mut config = Config::for_tests(dir.clone());
     config.max_file_bytes = 1_024;
     let harness = start(config).await;
-    let (cookie, csrf) = register(&harness).await;
+    let (cookie, csrf) = register(&harness, "files@example.com").await;
 
     let response = upload(
         &harness,

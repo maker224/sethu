@@ -102,8 +102,9 @@ to connect to a machine, rather than just signing in.
 The code is single-use and expires after 2 minutes
 (`SETHU_PAIR_TTL_SECONDS`). The phone first sees a confirmation page and the code
 is only consumed after it continues, so link previews can't burn it. Scanning
-grants a session, so only show it to a device you control. If the desktop is on
-`localhost`, Sethu substitutes the Mac's LAN IP so the phone can reach it;
+grants a session, so only show it to a device you control. The desktop pairing
+window closes itself as soon as the phone finishes connecting. If the desktop is
+on `localhost`, Sethu substitutes the Mac's LAN IP so the phone can reach it;
 otherwise set `SETHU_PUBLIC_URL` to the address phones use.
 
 The in-app scanner is intentionally **phone/tablet only**. Mac and Windows
@@ -323,6 +324,11 @@ Behaviour:
   link works everywhere.
 - Downloads are forced `Content-Disposition: attachment` with `nosniff`, so an
   uploaded HTML or SVG cannot execute on the Sethu origin.
+- Files are visible only inside their own username workspace. If you sign out
+  and sign in as someone else, the previous file list is cleared from memory and
+  from the page, the server returns that user's own files only, and old download
+  links return 404. `SETHU_AUTH=open` is the exception: everyone shares the
+  first workspace by design.
 - Files are visible to everyone with access to the workspace and are **not**
   end-to-end encrypted. The server stores them in plaintext on disk; anyone who
   controls the server or its backups can read them. Delete files from the list
@@ -424,6 +430,7 @@ the `x-sethu-csrf` header returned by `GET /api/session`; the session cookie is
 | `POST` | `/api/files/{id}/send` | Push a file to an Android device's Downloads (`host_id`) |
 | `DELETE` | `/api/files/{id}` | Delete a file and its contents |
 | `POST` | `/api/pair` | Create a short-lived QR pairing link (`host_id` optional) |
+| `GET` | `/api/pair/{token}` | Pairing status (`pending`/`redeemed`/`expired`), owner only |
 | `GET` | `/pair/{token}` | Confirmation page (link previews can't consume the token) |
 | `POST` | `/pair/{token}` | Redeem the code and set a session |
 | `GET` (WS) | `/ws/vnc/{id}` | Raw RFB byte stream (macOS and Windows) |

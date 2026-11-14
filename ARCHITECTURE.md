@@ -223,8 +223,15 @@ PNG frames.
 
 This is a shared server workspace, not peer-to-peer transfer. Upload from a
 phone, download on the MacBook (or vice versa). It is not end-to-end encrypted,
-and the server operator can read stored files. The frontend exposes it as the
-**Files** tab next to **Devices**.
+and the server operator can read stored files.
+
+File metadata and bytes are scoped to `owner_id`; every list/download/send
+checks it. The frontend clears `state.files`, the file rows and the totals when
+the session user changes, and in-flight file/host responses from the previous
+user are discarded so a slow request cannot paint old data into the new
+workspace. `SETHU_AUTH=open` intentionally maps everyone to one workspace.
+
+The frontend exposes this as the **Files** tab next to **Devices**.
 
 ## Sign-in modes
 
@@ -253,6 +260,10 @@ and the server operator can read stored files. The frontend exposes it as the
    this without consuming the token. The page's `pair.js` auto-submits, the
    POST consumes the token, creates a session, sets the cookie and redirects to
    `/` or `/viewer.html?host=…`. Replaying the token returns 404.
+5. The desktop polls `GET /api/pair/{token}` (owner only) while the QR is open;
+   once it reports `redeemed`, the pairing window closes automatically. The
+   record is retained as `redeemed` until its TTL so the status is observable,
+   but it can never be redeemed twice.
 
 The phone can also scan inside the app: jsQR decodes the camera stream on HTTPS,
 or a photo/pasted URL on plain HTTP. Camera access is blocked by browsers on
